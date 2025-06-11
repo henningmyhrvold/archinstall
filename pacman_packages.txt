@@ -1,0 +1,34 @@
+# --- Core Dependencies ---
+# Absolutely essential for the Ansible workflow
+git
+ansible
+openssh
+
+# --- The Bare Minimum for a Graphical Session ---
+# The Wayland compositor and its foundation
+hyprland
+wayland
+libinput
+# The essential portal for screen sharing, etc.
+xdg-desktop-portal-hyprland
+# A single, lightweight Wayland terminal.
+foot
+
+# --- Graphics Drivers ---
+# Universal open-source drivers for Intel and AMD
+mesa
+# For NVIDIA users, uncomment the following lines.
+# You will also need to add kernel parameters.
+# nvidia-dkms
+# nvidia-utils
+
+# --- Foundational System Services ---
+# Modern audio server
+pipewire
+wireplumber
+pipewire-pulse
+pipewire-alsa
+# Handles authentication prompts in Wayland
+polkit-kde-agent
+# Basic font support to make the terminal readable
+noto-fonts
