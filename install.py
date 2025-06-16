@@ -4,15 +4,12 @@ from pathlib import Path
 
 import archinstall
 from archinstall import SysInfo, debug, info
-from archinstall.lib import locale, models
+from archinstall.lib import disk, exceptions, locale, models
+from archinstall.lib.disk import select_devices, suggest_single_disk_layout
+from archinstall.lib.exceptions import ArchinstallError
 from archinstall.lib.global_menu import GlobalMenu
 from archinstall.lib.installer import Installer
-from archinstall.lib.interaction import (
-    ask_chroot,
-    select_devices,
-    suggest_single_disk_layout,
-    yes_no,
-)
+from archinstall.lib.menu import ask_chroot, yes_no
 from archinstall.lib.models import Bootloader, User
 from archinstall.lib.models.network_configuration import NetworkConfiguration
 from archinstall.lib.storage import run_disk_operations
@@ -24,6 +21,7 @@ SUDO_USER = None
 CONFIG_DIR = "/opt/archinstall"
 ISO_CONFIG_DIR = "/tmp/archinstall"
 MOUNT_POINT: Path | str = ""
+
 
 def ask_user(title="", default_text="") -> str:
     """Helper function to get user input via a TUI menu."""
@@ -37,6 +35,7 @@ def ask_user(title="", default_text="") -> str:
         .input()
         .text()
     )
+
 
 def prompt_disk_and_encryption(fs_type="ext4", separate_home=False) -> None:
     """
@@ -63,8 +62,8 @@ def prompt_disk_and_encryption(fs_type="ext4", separate_home=False) -> None:
         }
 
         # Mark all partitions for encryption except for /boot
-        for device in suggested_layout.values():
-            for partition in device.get('partitions', []):
+        for device_props in suggested_layout.values():
+            for partition in device_props.get('partitions', []):
                 if partition.get('mountpoint') != Path("/boot"):
                     partition['encrypted'] = True
                     # Add the partition object itself to the encryption config
@@ -87,11 +86,11 @@ def parse_user() -> list[User]:
 def chroot_cmd(cmd: str) -> None:
     """Executes a command inside the arch-chroot environment."""
     ret = subprocess.run(
-        ["arch-chroot", MOUNT_POINT, "/bin/bash", "-c", cmd],
+        ["arch-chroot", str(MOUNT_POINT), "/bin/bash", "-c", cmd],
         check=False  # We check the return code manually
     )
     if ret.returncode != 0:
-        raise archinstall.lib.exceptions.ArchinstallError(f"Failed to run chroot command: {cmd}")
+        raise ArchinstallError(f"Failed to run chroot command: {cmd}")
 
 
 def configure_system():
@@ -116,7 +115,7 @@ def perform_installation(mountpoint: Path) -> None:
     with Installer(mountpoint, archinstall.arguments) as installation:
         # Mount the partitions (if not pre-mounted)
         # This is now handled by run_disk_operations, but we ensure drives are mounted.
-        if not installation.is_mounted(mountpoint):
+        if not installation.is_mounted(str(mountpoint)):
              installation.mount_ordered_layout()
 
         # Set mirrors for the live environment (for pacstrap)
@@ -177,7 +176,7 @@ def perform_installation(mountpoint: Path) -> None:
                         info(f"Could not drop to shell: {e}")
 
     info("For post-installation tips, see https://wiki.archlinux.org/index.php/Installation_guide#Post-installation")
-    debug(f"Disk states after installing:\n{archinstall.lib.disk.disk_layouts()}")
+    debug(f"Disk states after installing:\n{disk.disk_layouts()}")
 
 
 def install():
@@ -227,7 +226,8 @@ def install():
     
     global MOUNT_POINT
     # The main installation mountpoint is the one for the root directory ('/')
-    MOUNT_POINT = next(mount for mount in mounts if mount.mountpoint == Path('/'))
+    # The returned mount objects are now BlockDevice objects, get mountpoint with .mountpoint
+    MOUNT_POINT = next(mount.mountpoint for mount in mounts if mount.mountpoint == Path('/'))
 
     perform_installation(MOUNT_POINT)
     
@@ -235,4 +235,8 @@ def install():
 
 
 if __name__ == "__main__":
+    # Set path for where archinstall will create log files
+    archinstall.set_log_path('/var/log/archinstall')
+    # Start the installation
     install()
+
