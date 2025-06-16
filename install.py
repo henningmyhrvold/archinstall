@@ -15,6 +15,7 @@ from archinstall.lib.utils.util import get_password
 from archinstall.tui import Tui
 from archinstall.tui.types import Alignment
 from archinstall.tui.curses_menu import EditMenu
+from archinstall.lib.args import Arguments
 
 # --- Globals ---
 SUDO_USER = None
@@ -59,9 +60,9 @@ def prompt_disk_and_encryption(fs_type="ext4", separate_home=False) -> None:
                 partition.encrypted = True
                 encryption_config["partitions"].append(partition)
         
-        archinstall.arguments['--disk-encryption'] = encryption_config
+        Arguments['--disk-encryption'] = encryption_config
 
-    archinstall.arguments['--disk-config'] = suggested_layout
+    Arguments['--disk-config'] = suggested_layout
 
 def parse_user() -> list[User]:
     """Prompts for and creates a sudo user."""
@@ -99,7 +100,7 @@ def perform_installation(mountpoint: Path) -> None:
     """
     info("Starting base system installation...")
     
-    with Installer(mountpoint, archinstall.arguments) as installation:
+    with Installer(mountpoint, Arguments) as installation:
         
         if not installation.is_mounted(str(mountpoint)):
             installation.mount_ordered_layout()
@@ -109,7 +110,7 @@ def perform_installation(mountpoint: Path) -> None:
         installation.add_bootloader()
         installation.configure_networking()
         installation.create_users()
-        installation.user_set_pw("root", archinstall.arguments.get("--!root-password"))
+        installation.user_set_pw("root", Arguments.get("--!root-password"))
         installation.set_timezone()
         installation.activate_time_synchronization()
         installation.enable_service()
@@ -117,7 +118,7 @@ def perform_installation(mountpoint: Path) -> None:
 
         configure_system()
 
-        if not archinstall.arguments.get("--silent"):
+        if not Arguments.get("--silent"):
             with Tui():
                 if MenuItemGroup.yes_no("Do you want to chroot into the new system for manual changes?"):
                     info("You will now be dropped into a shell within the new system. Type 'exit' to return to the installation process.")
@@ -128,7 +129,7 @@ def perform_installation(mountpoint: Path) -> None:
 
 def main():
     """Defines configuration and runs the entire installation process."""
-    archinstall.arguments.update({
+    Arguments.update({
         "--packages": [],
         "--services": ["NetworkManager", "sshd"],
         "--bootloader": Bootloader.SYSTEMD,
@@ -140,26 +141,26 @@ def main():
 
     with Tui():
         prompt_disk_and_encryption()
-        archinstall.arguments["--!users"] = parse_user()
-        archinstall.arguments["--!root-password"] = get_password("Enter root password")
-        archinstall.arguments["--hostname"] = ask_user("Enter hostname", archinstall.arguments['--hostname'])
+        Arguments["--!users"] = parse_user()
+        Arguments["--!root-password"] = get_password("Enter root password")
+        Arguments["--hostname"] = ask_user("Enter hostname", Arguments['--hostname'])
 
-        GlobalMenu(data_store=archinstall.arguments).run()
+        GlobalMenu(data_store=Arguments).run()
 
-    archinstall.save_config(archinstall.arguments)
-    archinstall.save_secure_config(archinstall.arguments)
+    archinstall.save_config(Arguments)
+    archinstall.save_secure_config(Arguments)
     
-    if archinstall.arguments.get("--dry-run"):
+    if Arguments.get("--dry-run"):
         exit(0)
 
-    if not archinstall.arguments.get("--silent"):
+    if not Arguments.get("--silent"):
         with Tui():
             if not MenuItemGroup.yes_no("All configuration is set. Do you want to continue with the installation?"):
                 debug("Installation aborted by user.")
                 return
 
     # Apply disk layout and mount root partition
-    disk_config = archinstall.arguments['--disk-config']
+    disk_config = Arguments['--disk-config']
     disk_config.apply()
 
     # Find and mount the root partition
@@ -179,5 +180,4 @@ def main():
     info("Installation complete. You can now reboot.")
 
 if __name__ == "__main__":
-    archinstall.set_log_path('/var/log/archinstall')
     main()
