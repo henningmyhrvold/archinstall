@@ -3,13 +3,13 @@ import subprocess
 from pathlib import Path
 
 import archinstall
-from archinstall import SysInfo, debug, info
+from archinstall import ArchinstallError, SysInfo, debug, info
 from archinstall.lib import disk, exceptions, locale, models
-from archinstall.lib.disk import select_devices, suggest_single_disk_layout
-from archinstall.lib.exceptions import ArchinstallError
+from archinstall.lib.interactions.disk_conf import select_devices, suggest_single_disk_layout
+from archinstall.lib.interactions.general import yes_no
+from archinstall.lib.interactions.chroot import ask_chroot
 from archinstall.lib.global_menu import GlobalMenu
 from archinstall.lib.installer import Installer
-from archinstall.lib.menu import ask_chroot, yes_no
 from archinstall.lib.models import Bootloader, User
 from archinstall.lib.models.network_configuration import NetworkConfiguration
 from archinstall.lib.storage import run_disk_operations
@@ -209,4 +209,3 @@ def main():
 if __name__ == "__main__":
     archinstall.set_log_path('/var/log/archinstall')
     main()
-
