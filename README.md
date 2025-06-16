@@ -11,7 +11,7 @@ This script automates the installation of a minimal Arch Linux base system, prep
 3.  **Download the installation files:**
     ```bash
     pacman -Sy --noconfirm git
-    git clone [https://github.com/henningmyhrvold/archinstall.git](https://github.com/henningmyhrvold/archinstall.git) /tmp/archinstall
+    git clone https://github.com/henningmyhrvold/archinstall /tmp/archinstall
     cd /tmp/archinstall
     ```
 4.  **Review and Modify Scripts**

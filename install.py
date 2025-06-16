@@ -19,7 +19,7 @@ from archinstall.tui import Alignment, EditMenu, Tui
 # --- Globals ---
 SUDO_USER = None
 CONFIG_DIR = "/opt/archinstall"
-ISO_CONFIG_DIR = "/tmp/archinstall" # Assumes your config files are in /tmp/archinstall on the ISO
+ISO_CONFIG_DIR = "/tmp/archinstall"
 MOUNT_POINT: Path | str = ""
 
 
@@ -105,17 +105,15 @@ def configure_system():
 
 def perform_installation(mountpoint: Path) -> None:
     """
-    Performs the main installation steps using the modern Installer class API.
+    Performs the main installation steps using the Installer class API.
     """
     info("Starting base system installation...")
     
     # The modern Installer class takes the mountpoint and the entire arguments
     # dictionary, simplifying its creation.
     with Installer(mountpoint, archinstall.arguments) as installation:
-        # Most installation methods are now simplified. They pull their needed
-        # configuration directly from the arguments dictionary passed above.
         
-        # Mounts are handled by run_disk_operations, but we can double check.
+        # Mounts are handled by run_disk_operations.
         if not installation.is_mounted(str(mountpoint)):
              installation.mount_ordered_layout()
 
@@ -125,7 +123,7 @@ def perform_installation(mountpoint: Path) -> None:
         # Install base system, kernel, and essential packages
         installation.minimal_installation()
 
-        # Install and configure the bootloader (systemd-boot with UKIs is default)
+        # Install and configure the bootloader
         installation.add_bootloader()
 
         # Configure network using NetworkManager
@@ -145,8 +143,8 @@ def perform_installation(mountpoint: Path) -> None:
         # Generate the fstab file
         installation.genfstab()
 
-        # THIS IS THE CRUCIAL STEP: Run our custom setup script
-        # We do this inside the 'with' block to ensure the system is still mounted.
+        # Run custom setup script
+        # Do this inside the 'with' block to ensure the system is still mounted.
         configure_system()
 
         # Offer to chroot into the new system for manual changes
@@ -209,28 +207,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # It's good practice to set where logs will be stored
     archinstall.set_log_path('/var/log/archinstall')
-    # Run the main installation function
     main()
-```
 
-### Detailed Breakdown of Changes
-
-1.  **Simplified `perform_installation`:** The core `Installer` methods have been heavily simplified.
-    * **Old:** `installation.minimal_installation(hostname=..., locale_config=...)`
-    * **New:** `installation.minimal_installation()`
-    * **Reason:** The `Installer` object now gets all settings from the `archinstall.arguments` dictionary upon creation. You no longer need to pass arguments to each individual method, which makes the code much cleaner and less prone to breaking. I have updated all calls inside this function (`add_bootloader`, `configure_networking`, etc.) to this new, argument-less style.
-
-2.  **Robust `chroot_cmd`:**
-    * **Old:** `["arch-chroot", MOUNT_POINT, ...]`
-    * **New:** `["arch-chroot", str(MOUNT_POINT), ...]`
-    * **Reason:** `MOUNT_POINT` is a `pathlib.Path` object. While `subprocess` often handles this, explicitly converting it to a string with `str()` is safer and prevents potential errors.
-
-3.  **Correct Mountpoint Retrieval:**
-    * The `run_disk_operations` function returns a list of `BlockDevice` objects, not simple paths. Your original logic to find the root was nearly correct, but my updated version makes it explicit that we're iterating through objects and grabbing their `.mountpoint` attribute.
-
-4.  **Standardized Main Function:**
-    * I renamed your `install()` function to `main()` and placed the execution logic under an `if __name__ == "__main__":` block. This is a standard Python convention that makes the script's intent clearer and prevents code from running if the script is ever imported into another Python file.
-
-This adapted script should now work correctly with the latest version of the `archinstall` library. It maintains your desired workflow while adhering to the modern API standar
