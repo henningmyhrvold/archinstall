@@ -6,7 +6,7 @@ import archinstall
 from archinstall import SysInfo, debug, info
 from archinstall.lib import disk, locale, models
 from archinstall.lib.interactions.disk_conf import select_devices, suggest_single_disk_layout
-from archinstall.tui.menu_item import yes_no
+from archinstall.tui.menu_item import MenuItemGroup
 from archinstall.lib.global_menu import GlobalMenu
 from archinstall.lib.installer import Installer
 from archinstall.lib.models import Bootloader, User
@@ -14,7 +14,7 @@ from archinstall.lib.models.network_configuration import NetworkConfiguration
 from archinstall.lib.utils.util import get_password
 from archinstall.tui import Tui
 from archinstall.tui.types import Alignment
-from archinstall.tui.curses_menu EditMenu
+from archinstall.tui.curses_menu import EditMenu
 
 # --- Globals ---
 SUDO_USER = None
@@ -45,7 +45,7 @@ def prompt_disk_and_encryption(fs_type="ext4", separate_home=False) -> None:
         block_devices[0], models.FileSystemType(fs_type), separate_home=separate_home
     )
 
-    if yes_no("Do you want to enable disk encryption?"):
+    if MenuItemGroup.yes_no("Do you want to enable disk encryption?"):
         encryption_password = get_password("Enter disk encryption password: ")
         
         encryption_config = {
@@ -119,7 +119,7 @@ def perform_installation(mountpoint: Path) -> None:
 
         if not archinstall.arguments.get("--silent"):
             with Tui():
-                if yes_no("Do you want to chroot into the new system for manual changes?"):
+                if MenuItemGroup.yes_no("Do you want to chroot into the new system for manual changes?"):
                     info("You will now be dropped into a shell within the new system. Type 'exit' to return to the installation process.")
                     try:
                         installation.drop_to_shell()
@@ -154,7 +154,7 @@ def main():
 
     if not archinstall.arguments.get("--silent"):
         with Tui():
-            if not yes_no("All configuration is set. Do you want to continue with the installation?"):
+            if not MenuItemGroup.yes_no("All configuration is set. Do you want to continue with the installation?"):
                 debug("Installation aborted by user.")
                 return
 
