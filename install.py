@@ -3,8 +3,8 @@ import subprocess
 from pathlib import Path
 
 import archinstall
-from archinstall import ArchinstallError, SysInfo, debug, info
-from archinstall.lib import disk, exceptions, locale, models
+from archinstall import SysInfo, debug, info
+from archinstall.lib import disk, locale, models
 from archinstall.lib.interactions.disk_conf import select_devices, suggest_single_disk_layout
 from archinstall.lib.interactions.general import yes_no
 from archinstall.lib.interactions.chroot import ask_chroot
@@ -83,7 +83,7 @@ def chroot_cmd(cmd: str) -> None:
         check=False
     )
     if ret.returncode != 0:
-        raise ArchinstallError(f"Failed to run chroot command: {cmd}")
+        raise RuntimeError(f"Failed to run chroot command: {cmd}")
 
 
 def configure_system():
