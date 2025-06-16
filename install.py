@@ -4,29 +4,29 @@ from pathlib import Path
 
 import archinstall
 from archinstall import SysInfo, debug, info
-from archinstall.lib import disk, locale, models
-from archinstall.lib.configuration import ConfigurationOutput
-from archinstall.lib.disk.device_model import DiskLayoutConfiguration
+from archinstall.lib import locale, models
 from archinstall.lib.global_menu import GlobalMenu
 from archinstall.lib.installer import Installer
-from archinstall.lib.interactions import select_devices, suggest_single_disk_layout
-from archinstall.lib.interactions.general_conf import ask_chroot
-from archinstall.lib.mirrors import (
-    MirrorConfiguration,
+from archinstall.lib.interaction import (
+    ask_chroot,
+    select_devices,
+    suggest_single_disk_layout,
+    yes_no,
 )
 from archinstall.lib.models import Bootloader, User
 from archinstall.lib.models.network_configuration import NetworkConfiguration
-from archinstall.lib.profile import ProfileConfiguration
+from archinstall.lib.storage import run_disk_operations
 from archinstall.lib.utils.util import get_password
 from archinstall.tui import Alignment, EditMenu, Tui
 
+# --- Globals ---
 SUDO_USER = None
 CONFIG_DIR = "/opt/archinstall"
 ISO_CONFIG_DIR = "/tmp/archinstall"
-MOUNT_POINT: str | Path = ""
-
+MOUNT_POINT: Path | str = ""
 
 def ask_user(title="", default_text="") -> str:
+    """Helper function to get user input via a TUI menu."""
     return (
         EditMenu(
             title=title,
@@ -38,234 +38,199 @@ def ask_user(title="", default_text="") -> str:
         .text()
     )
 
-
-def prompt_disk_layout(fs_type="ext4", separate_home=False) -> None:
-    fs_type = disk.FilesystemType(fs_type)
-
-    devices = select_devices()
-    modifications = suggest_single_disk_layout(
-        devices[0], filesystem_type=fs_type, separate_home=separate_home
+def prompt_disk_and_encryption(fs_type="ext4", separate_home=False) -> None:
+    """
+    Guides the user through disk selection, layout suggestion, and encryption setup.
+    This function combines the logic of the original `prompt_disk_layout` and `parse_disk_encryption`.
+    """
+    # Select the target block device
+    block_devices = select_devices()
+    
+    # Suggest a layout based on user preference
+    suggested_layout = suggest_single_disk_layout(
+        block_devices[0], filesystem_type=models.FileSystemType(fs_type), separate_home=separate_home
     )
 
-    archinstall.arguments["disk_config"] = disk.DiskLayoutConfiguration(
-        config_type=disk.DiskLayoutType.Default, device_modifications=[modifications]
-    )
+    # Ask if the user wants to encrypt the disk
+    if yes_no("Do you want to enable disk encryption?"):
+        encryption_password = get_password("Enter disk encryption password: ")
+        
+        # Define the encryption configuration
+        encryption_config = {
+            "encryption_type": "luks",
+            "password": encryption_password,
+            "partitions": []
+        }
+
+        # Mark all partitions for encryption except for /boot
+        for device in suggested_layout.values():
+            for partition in device.get('partitions', []):
+                if partition.get('mountpoint') != Path("/boot"):
+                    partition['encrypted'] = True
+                    # Add the partition object itself to the encryption config
+                    encryption_config["partitions"].append(partition)
+        
+        archinstall.arguments['--disk-encryption'] = encryption_config
+
+    # Store the final disk layout configuration
+    archinstall.arguments['--disk-config'] = suggested_layout
 
 
-def parse_disk_encryption() -> None:
-    modification: DiskLayoutConfiguration = archinstall.arguments["disk_config"]
-    partitions: list[disk.PartitionModification] = []
-
-    # encrypt all partitions except the /boot
-    for mod in modification.device_modifications:
-        partitions += list(
-            filter(lambda x: x.mountpoint != Path("/boot"), mod.partitions)
-        )
-
-    archinstall.arguments["disk_encryption"] = disk.DiskEncryption(
-        encryption_type=disk.EncryptionType.Luks,
-        encryption_password=get_password("Enter disk encryption password: "),
-        partitions=partitions,
-    )
-
-
-def parse_user():
+def parse_user() -> list[User]:
+    """Prompts for and creates a sudo user."""
     global SUDO_USER
     SUDO_USER = ask_user("Sudo user username", "user")
     password = get_password(text="Sudo user password")
     return [User(SUDO_USER, password, sudo=True)]
 
 
-def chroot_cmd(cmd):
+def chroot_cmd(cmd: str) -> None:
+    """Executes a command inside the arch-chroot environment."""
     ret = subprocess.run(
-        [
-            "arch-chroot",
-            MOUNT_POINT,
-            "/bin/bash",
-            "-c",
-            cmd,
-        ]
+        ["arch-chroot", MOUNT_POINT, "/bin/bash", "-c", cmd],
+        check=False  # We check the return code manually
     )
     if ret.returncode != 0:
-        raise Exception(f"Failed to run command: {cmd}")
-
-
-def mv(source, destination):
-    shutil.move(source, destination)
+        raise archinstall.lib.exceptions.ArchinstallError(f"Failed to run chroot command: {cmd}")
 
 
 def configure_system():
+    """Copies configuration files into the new system and runs a post-install script."""
     info("Copying configuration files")
-    # Ensure the target directory exists
-    Path(f"{MOUNT_POINT}{CONFIG_DIR}").mkdir(parents=True, exist_ok=True)
+    target_config_dir = Path(f"{MOUNT_POINT}{CONFIG_DIR}")
+    target_config_dir.mkdir(parents=True, exist_ok=True)
     
-    # Move configuration files
-    mv(ISO_CONFIG_DIR, f"{MOUNT_POINT}{CONFIG_DIR}/..")
+    # Move configuration files from the ISO to the new system
+    shutil.move(ISO_CONFIG_DIR, target_config_dir.parent)
 
-    chroot_cmd(f"chmod +x {CONFIG_DIR}/post_install.sh")
+    post_install_script = f"{CONFIG_DIR}/post_install.sh"
+    chroot_cmd(f"chmod +x {post_install_script}")
     info("Starting post install script")
-    chroot_cmd(f"{CONFIG_DIR}/post_install.sh {SUDO_USER}")
+    chroot_cmd(f"{post_install_script} {SUDO_USER}")
 
 
 def perform_installation(mountpoint: Path) -> None:
-    """
-    Performs the installation steps on a block device.
-    """
+    """Performs the main installation steps using the Installer class."""
     info("Starting installation...")
-    disk_config: disk.DiskLayoutConfiguration = archinstall.arguments["disk_config"]
+    
+    with Installer(mountpoint, archinstall.arguments) as installation:
+        # Mount the partitions (if not pre-mounted)
+        # This is now handled by run_disk_operations, but we ensure drives are mounted.
+        if not installation.is_mounted(mountpoint):
+             installation.mount_ordered_layout()
 
-    enable_testing = "testing" in archinstall.arguments.get(
-        "additional-repositories", []
-    )
-    enable_multilib = "multilib" in archinstall.arguments.get(
-        "additional-repositories", []
-    )
-    run_mkinitcpio = not archinstall.arguments.get("uki")
-    locale_config: locale.LocaleConfiguration = archinstall.arguments["locale_config"]
-    disk_encryption: disk.DiskEncryption = archinstall.arguments.get(
-        "disk_encryption", None
-    )
-
-    with Installer(
-        mountpoint,
-        disk_config,
-        disk_encryption=disk_encryption,
-        kernels=archinstall.arguments.get("kernels", ["linux"]),
-    ) as installation:
-        if disk_config.config_type != disk.DiskLayoutType.Pre_mount:
-            installation.mount_ordered_layout()
-
-        installation.sanity_check()
-
-        if disk_config.config_type != disk.DiskLayoutType.Pre_mount:
-            if (
-                disk_encryption
-                and disk_encryption.encryption_type != disk.EncryptionType.NoEncryption
-            ):
-                installation.generate_key_files()
-
-        if mirror_config := archinstall.arguments.get("mirror_config", None):
+        # Set mirrors for the live environment (for pacstrap)
+        if mirror_config := archinstall.arguments.get("--mirror-config", None):
             installation.set_mirrors(mirror_config, on_target=False)
 
-        # This installs the base system
-        installation.minimal_installation(
-            testing=enable_testing,
-            multilib=enable_multilib,
-            mkinitcpio=run_mkinitcpio,
-            hostname=archinstall.arguments.get("hostname"),
-            locale_config=locale_config,
-        )
+        # Install base system and packages
+        installation.minimal_installation()
 
-        if mirror_config := archinstall.arguments.get("mirror_config", None):
+        # Set mirrors on the target system
+        if mirror_config := archinstall.arguments.get("--mirror-config", None):
             installation.set_mirrors(mirror_config, on_target=True)
 
-        if archinstall.arguments.get("swap"):
-            installation.setup_swap("zram")
+        # Install bootloader
+        installation.add_bootloader()
 
-        installation.add_bootloader(
-            archinstall.arguments["bootloader"], archinstall.arguments.get("uki", False)
-        )
-
-        network_config: NetworkConfiguration | None = archinstall.arguments.get(
-            "network_config", None
-        )
-
-        if network_config:
+        # Configure network
+        if network_config := archinstall.arguments.get("--network-config", None):
             network_config.install_network_config(
-                installation, archinstall.arguments.get("profile_config", None)
+                installation, archinstall.arguments.get("--profile-config", None)
             )
 
-        if users := archinstall.arguments.get("!users", None):
+        # Create users
+        if users := archinstall.arguments.get("--!users", None):
             installation.create_users(users)
         
-        # All additional packages will be installed by the post_install.sh script
-        if (
-            archinstall.arguments.get("packages", None)
-            and archinstall.arguments.get("packages", None)[0] != ""
-        ):
-            installation.add_additional_packages(
-                archinstall.arguments.get("packages", None)
-            )
-
-        if timezone := archinstall.arguments.get("timezone", None):
-            installation.set_timezone(timezone)
-
-        if archinstall.arguments.get("ntp", False):
-            installation.activate_time_synchronization()
-
-        if (root_pw := archinstall.arguments.get("!root-password", None)) and len(
-            root_pw
-        ):
+        # Set root password
+        if root_pw := archinstall.arguments.get("--!root-password", None):
             installation.user_set_pw("root", root_pw)
 
-        if archinstall.arguments.get("services", None):
-            installation.enable_service(archinstall.arguments.get("services", []))
+        # Install additional packages (if any)
+        if packages := archinstall.arguments.get("--packages", []):
+            installation.add_additional_packages(packages)
 
+        # Configure system settings
+        if timezone := archinstall.arguments.get("--timezone", None):
+            installation.set_timezone(timezone)
+        
+        if archinstall.arguments.get("--ntp", False):
+            installation.activate_time_synchronization()
+
+        if services := archinstall.arguments.get("--services", []):
+            installation.enable_service(services)
+
+        # Generate fstab
         installation.genfstab()
 
+        # Run custom system configuration
         configure_system()
 
-        if not archinstall.arguments.get("silent"):
+        # Offer to chroot into the new system
+        if not archinstall.arguments.get("--silent"):
             with Tui():
-                chroot = ask_chroot()
-            if chroot:
-                try:
-                    installation.drop_to_shell()
-                except Exception:
-                    pass
+                if ask_chroot():
+                    try:
+                        installation.drop_to_shell()
+                    except Exception as e:
+                        info(f"Could not drop to shell: {e}")
 
-        info(
-            "For post-installation tips, see https://wiki.archlinux.org/index.php/Installation_guide#Post-installation"
-        )
-
-    debug(f"Disk states after installing:\n{disk.disk_layouts()}")
+    info("For post-installation tips, see https://wiki.archlinux.org/index.php/Installation_guide#Post-installation")
+    debug(f"Disk states after installing:\n{archinstall.lib.disk.disk_layouts()}")
 
 
 def install():
-    # Set sane defaults for a minimal install
-    archinstall.arguments["packages"] = [""]
-    archinstall.arguments["services"] = ["NetworkManager", "sshd"]
-    archinstall.arguments["profile_config"] = None
-    archinstall.arguments["audio_config"] = None
-    archinstall.arguments["network_config"] = models.NetworkConfiguration(
-        models.NicType.NM
-    )
-    archinstall.arguments["bootloader"] = models.Bootloader.Systemd
-    archinstall.arguments["timezone"] = "Europe/Oslo"
-    archinstall.arguments["uki"] = True # Using Unified Kernel Images
+    """Main function to define configuration and run the installation."""
+    # Set defaults using the new dictionary-based argument system
+    archinstall.arguments.update({
+        "--packages": [],  # All additional packages will be installed by the post_install.sh script
+        "--services": ["NetworkManager", "sshd"],
+        "--profile-config": None,
+        "--audio-config": None,
+        "--network-config": models.NetworkConfiguration(nic_type=models.NicType.NM),
+        "--bootloader": Bootloader.SYSTEMD,
+        "--timezone": "Europe/Oslo",
+        "--uki": True,
+        "--hostname": "arch",
+        "--locale-config": models.LocaleConfiguration('en_US.UTF-8', 'en_US'),
+        "--swap": True,
+    })
 
     with Tui():
-        prompt_disk_layout()
-        parse_disk_encryption()
-        archinstall.arguments["!users"] = parse_user()
-        archinstall.arguments["!root-password"] = get_password("Enter root password")
-        archinstall.arguments["hostname"] = ask_user("Enter hostname", "arch")
+        prompt_disk_and_encryption()
+        archinstall.arguments["--!users"] = parse_user()
+        archinstall.arguments["--!root-password"] = get_password("Enter root password")
+        archinstall.arguments["--hostname"] = ask_user("Enter hostname", archinstall.arguments['--hostname'])
+
+        # The global menu allows users to review and change any setting before proceeding
         global_menu = GlobalMenu(data_store=archinstall.arguments)
         global_menu.set_enabled("parallel downloads", True)
         global_menu.run()
 
-    config = ConfigurationOutput(archinstall.arguments)
-    config.write_debug()
-    config.save()
-
-    if archinstall.arguments.get("dry_run"):
+    # Save user configuration for debugging and re-use
+    archinstall.save_config(archinstall.arguments)
+    archinstall.save_secure_config(archinstall.arguments)
+    
+    if archinstall.arguments.get("--dry-run"):
         exit(0)
 
-    if not archinstall.arguments.get("silent"):
+    if not archinstall.arguments.get("--silent"):
         with Tui():
-            if not config.confirm_config():
-                debug("Installation aborted")
-                return install()
+            if not yes_no("Do you want to continue with the installation?"):
+                debug("Installation aborted by user.")
+                return
 
-    fs_handler = disk.FilesystemHandler(
-        archinstall.arguments["disk_config"],
-        archinstall.arguments.get("disk_encryption", None),
-    )
-
-    fs_handler.perform_filesystem_operations()
+    # Perform all disk operations (partitioning, formatting, encryption)
+    # This is the modern replacement for FilesystemHandler
+    mounts = run_disk_operations(archinstall.arguments)
+    
     global MOUNT_POINT
-    MOUNT_POINT = archinstall.arguments.get("installation.target", Path("/mnt"))
+    # The main installation mountpoint is the one for the root directory ('/')
+    MOUNT_POINT = next(mount for mount in mounts if mount.mountpoint == Path('/'))
+
     perform_installation(MOUNT_POINT)
+    
     info("Installation complete. You can now reboot.")
 
 
