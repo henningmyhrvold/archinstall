@@ -35,10 +35,8 @@ if not devices:
 # Display available devices with numbers and sizes
 print("Available devices:")
 for i, device in enumerate(devices, start=1):
-    # FIX: Explicitly load the detailed information for the device.
-    # This is necessary to access attributes like `device_info`.
     size_gib = device.device_info.total_size.format_highest()
-    print(f"{i}. {device.device_info.path} - {size_gib} GiB")
+    print(f"{i}. {device.device_info.path} - {size_gib}")
 
 # Prompt the user to select a device by number
 while True:
@@ -62,11 +60,14 @@ root_password = getpass("Enter root password: ")
 hostname = input("Enter hostname: ")
 encryption_password = getpass("Enter disk encryption password: ")
 
-# Create device modification with wipe
-device_modification = DeviceModification(device, wipe=True)
+# Create device modification with wipe and GPT partition table
+device_modification = DeviceModification(device, wipe=True, part_table_type="gpt")
 
 # Define filesystem type
 fs_type = FilesystemType('ext4')
+
+# Calculate total disk size in bytes
+total_disk_size = device.device_info.total_size.get_bytes(device.device_info.sector_size)
 
 # Create boot partition (FAT32, 512 MiB)
 boot_start = Size(1, Unit.MiB, device.device_info.sector_size)
@@ -96,11 +97,19 @@ root_partition = PartitionModification(
 )
 device_modification.add_partition(root_partition)
 
-# Create home partition (ext4, remaining space)
+# Calculate remaining space for home partition
 home_start = root_start + root_length
-# REFINEMENT: Set length to 0 to automatically use all remaining space.
-# This is more reliable than calculating the size manually.
-home_length = Size(0, Unit.B, device.device_info.sector_size)
+used_size = boot_length.get_bytes(device.device_info.sector_size) + root_length.get_bytes(device.device_info.sector_size)
+remaining_size = total_disk_size - used_size
+
+# Ensure there is enough space for the home partition (minimum 1 MiB)
+if remaining_size < Size(1, Unit.MiB, device.device_info.sector_size).get_bytes(device.device_info.sector_size):
+    raise ValueError(
+        f"Disk is too small: {total_disk_size / (1024**3):.2f} GiB available, "
+        f"but {(used_size / (1024**3)):.2f} GiB required for boot and root partitions."
+    )
+
+home_length = Size(remaining_size, Unit.B, device.device_info.sector_size)
 home_partition = PartitionModification(
     status=ModificationStatus.Create,
     type=PartitionType.Primary,
@@ -160,10 +169,10 @@ with Installer(
     # Set root password
     installation.user_set_pw('root', Password(plaintext=root_password))
 
-    # Enable services from old script
+    # Enable services
     installation.enable_service(['NetworkManager', 'sshd'])
 
-    # Set timezone from old script
+    # Set timezone
     installation.set_timezone('Europe/Oslo')
 
     # Copy configuration files and run post-install script
@@ -175,4 +184,3 @@ with Installer(
     installation.arch_chroot(f'/opt/archinstall/post_install.sh {sudo_user}')
 
 print("Installation complete. You can now reboot.")
-
