@@ -37,7 +37,7 @@ print("Available devices:")
 for i, device in enumerate(devices, start=1):
     # FIX: Explicitly load the detailed information for the device.
     # This is necessary to access attributes like `device_info`.
-    size_gib = device.device_info.total_size
+    size_gib = device.device_info.total_size.format_highest()
     print(f"{i}. {device.device_info.path} - {size_gib} GiB")
 
 # Prompt the user to select a device by number
