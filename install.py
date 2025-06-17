@@ -35,6 +35,9 @@ if not devices:
 # Display available devices with numbers and sizes
 print("Available devices:")
 for i, device in enumerate(devices, start=1):
+    # FIX: Explicitly load the detailed information for the device.
+    # This is necessary to access attributes like `device_info`.
+    device.load_device_info()
     size_gib = device.device_info.total_size.to(Unit.GiB)
     print(f"{i}. {device.path} - {size_gib:.2f} GiB")
 
@@ -96,7 +99,9 @@ device_modification.add_partition(root_partition)
 
 # Create home partition (ext4, remaining space)
 home_start = root_start + root_length
-home_length = device.device_info.total_size - home_start
+# REFINEMENT: Set length to 0 to automatically use all remaining space.
+# This is more reliable than calculating the size manually.
+home_length = Size(0, Unit.B, device.device_info.sector_size)
 home_partition = PartitionModification(
     status=ModificationStatus.Create,
     type=PartitionType.Primary,
@@ -171,3 +176,4 @@ with Installer(
     installation.arch_chroot(f'/opt/archinstall/post_install.sh {sudo_user}')
 
 print("Installation complete. You can now reboot.")
+
