@@ -97,25 +97,13 @@ root_partition = PartitionModification(
 )
 device_modification.add_partition(root_partition)
 
-# Calculate remaining space for home partition
+# Create home partition to fill the rest of the disk
 home_start = root_start + root_length
-used_size = boot_length + root_length
-remaining_size = total_disk_size - used_size
-
-# Ensure there is enough space for the home partition (minimum 1 MiB)
-min_home_size = Size(1, Unit.MiB, device.device_info.sector_size)
-if remaining_size < min_home_size:
-    raise ValueError(
-        f"Disk is too small: {total_disk_size.format_highest()} available, "
-        f"but {(used_size.format_highest())} required for boot and root partitions."
-    )
-
-home_length = remaining_size
 home_partition = PartitionModification(
     status=ModificationStatus.Create,
     type=PartitionType.Primary,
     start=home_start,
-    length=home_length,
+    length=None,  # This tells archinstall to use all remaining space
     mountpoint=Path('/home'),
     fs_type=fs_type,
     mount_options=[],
