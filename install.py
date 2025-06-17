@@ -28,7 +28,6 @@ from archinstall.lib.profile.profiles_handler import profile_handler
 print("WARNING: The selected device will be wiped and all data will be lost.")
 
 # Get the list of available devices
-# In newer archinstall versions, this returns BDevice objects
 devices = device_handler.devices
 if not devices:
     raise ValueError("No devices found")
@@ -36,9 +35,9 @@ if not devices:
 # Display available devices with numbers and sizes
 print("Available devices:")
 for i, device in enumerate(devices, start=1):
-    # FIX: Access the .size attribute directly from the device object.
-    # The device_info attribute is no longer needed for this.
-    size_gib = device.size.to(Unit.GiB)
+    # FIX: Explicitly load the detailed information for the device.
+    # This is necessary to access attributes like `device_info`.
+    size_gib = device.device_info.total_size
     print(f"{i}. {device.path} - {size_gib:.2f} GiB")
 
 # Prompt the user to select a device by number
@@ -69,10 +68,9 @@ device_modification = DeviceModification(device, wipe=True)
 # Define filesystem type
 fs_type = FilesystemType('ext4')
 
-# FIX: Use device.sector_size directly instead of device.device_info.sector_size
 # Create boot partition (FAT32, 512 MiB)
-boot_start = Size(1, Unit.MiB, device.sector_size)
-boot_length = Size(512, Unit.MiB, device.sector_size)
+boot_start = Size(1, Unit.MiB, device.device_info.sector_size)
+boot_length = Size(512, Unit.MiB, device.device_info.sector_size)
 boot_partition = PartitionModification(
     status=ModificationStatus.Create,
     type=PartitionType.Primary,
@@ -86,7 +84,7 @@ device_modification.add_partition(boot_partition)
 
 # Create root partition (ext4, 20 GiB)
 root_start = boot_start + boot_length
-root_length = Size(20, Unit.GiB, device.sector_size)
+root_length = Size(20, Unit.GiB, device.device_info.sector_size)
 root_partition = PartitionModification(
     status=ModificationStatus.Create,
     type=PartitionType.Primary,
@@ -100,7 +98,9 @@ device_modification.add_partition(root_partition)
 
 # Create home partition (ext4, remaining space)
 home_start = root_start + root_length
-home_length = Size(0, Unit.B, device.sector_size)
+# REFINEMENT: Set length to 0 to automatically use all remaining space.
+# This is more reliable than calculating the size manually.
+home_length = Size(0, Unit.B, device.device_info.sector_size)
 home_partition = PartitionModification(
     status=ModificationStatus.Create,
     type=PartitionType.Primary,
