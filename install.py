@@ -173,7 +173,7 @@ with Installer(
     installation.set_user_password(root_user)
 
     # Enable services
-    installation.enable_service(['NetworkManager', 'sshd'])
+    installation.enable_service(['NetworkManager.service', 'sshd'])
 
     # Set timezone
     installation.set_timezone('Europe/Oslo')
