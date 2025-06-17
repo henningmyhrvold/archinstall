@@ -24,18 +24,42 @@ from archinstall.lib.models.profile_model import ProfileConfiguration
 from archinstall.lib.models.users import Password, User
 from archinstall.lib.profile.profiles_handler import profile_handler
 
-# Prompt user for installation inputs
-device_path = input("Enter the device path (e.g., /dev/sda): ")
+# Warn the user about data loss
+print("WARNING: The selected device will be wiped and all data will be lost.")
+
+# Get the list of available devices
+devices = device_handler.devices
+if not devices:
+    raise ValueError("No devices found")
+
+# Display available devices with numbers and sizes
+print("Available devices:")
+for i, device in enumerate(devices, start=1):
+    size = device.device_info.total_size
+    size_gib = size / (1024 ** 3)
+    print(f"{i}. {device.path} - {size_gib:.2f} GiB")
+
+# Prompt the user to select a device by number
+while True:
+    try:
+        choice = int(input("Enter the number of the device to use: "))
+        if 1 <= choice <= len(devices):
+            selected_device = devices[choice - 1]
+            break
+        else:
+            print("Invalid number. Please try again.")
+    except ValueError:
+        print("Please enter a valid number.")
+
+# Use the selected device
+device = selected_device
+
+# Prompt user for other installation inputs
 sudo_user = input("Enter sudo user username: ")
 sudo_password = getpass("Enter sudo user password: ")
 root_password = getpass("Enter root password: ")
 hostname = input("Enter hostname: ")
 encryption_password = getpass("Enter disk encryption password: ")
-
-# Get the device
-device = device_handler.get_device(Path(device_path))
-if not device:
-    raise ValueError('No device found for given path')
 
 # Create device modification with wipe
 device_modification = DeviceModification(device, wipe=True)
