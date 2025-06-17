@@ -34,9 +34,8 @@ if not devices:
 
 # Display available devices with numbers and sizes
 print("Available devices:")
-for i, device in enumerate(devices, start=1):
-    size = device.device_info.total_size
-    size_gib = size / (1024 ** 3)
+for i, device in enumerate(harddrives, 1):
+    size_gib = device.device_info.total_size.to(Unit.GiB)
     print(f"{i}. {device.path} - {size_gib:.2f} GiB")
 
 # Prompt the user to select a device by number
