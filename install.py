@@ -170,7 +170,7 @@ with Installer(
 
     # Set root password
     root_user = User('root', Password(plaintext=root_password), False)
-    installation.create_users(root_user)
+    installation.set_user_password(root_user)
 
     # Enable services
     installation.enable_service(['NetworkManager', 'sshd'])
