@@ -1,5 +1,6 @@
 from pathlib import Path
 from getpass import getpass
+import subprocess
 import shutil
 
 from archinstall.default_profiles.minimal import MinimalProfile
@@ -91,7 +92,7 @@ root_partition = PartitionModification(
     type=PartitionType.Primary,
     start=root_start,
     length=root_length,
-    mountpoint=None,  # Mounted at / by Installer
+    mountpoint=Path('/'),
     fs_type=fs_type,
     mount_options=[],
 )
@@ -141,6 +142,10 @@ disk_config.disk_encryption = disk_encryption
 fs_handler = FilesystemHandler(disk_config)
 fs_handler.perform_filesystem_operations(show_countdown=False)
 
+# Debugging step
+result = subprocess.run(['lsblk', '-b', device.device_info.path], capture_output=True, text=True)
+print("Partition layout after creation:\n", result.stdout)
+
 # Define mountpoint
 mountpoint = Path('/mnt')
 
@@ -152,6 +157,13 @@ with Installer(
 ) as installation:
     # Mount the filesystem layout
     installation.mount_ordered_layout()
+
+    result = subprocess.run(['mount'], capture_output=True, text=True)
+    print("Mountpoints during installation:\n", result.stdout)
+    if not any('/mnt/boot' in line and device.device_info.path in line for line in result.stdout.splitlines()):
+        raise RuntimeError("Boot partition not mounted correctly at /mnt/boot")
+    if not any('/mnt ' in line and device.device_info.path in line for line in result.stdout.splitlines()):
+        raise RuntimeError("Root partition not mounted correctly at /mnt")
 
     # Perform minimal installation with specified hostname
     installation.minimal_installation(hostname=hostname)
