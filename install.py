@@ -60,8 +60,8 @@ root_password = getpass("Enter root password: ")
 hostname = input("Enter hostname: ")
 encryption_password = getpass("Enter disk encryption password: ")
 
-# Create device modification with wipe and GPT partition table
-device_modification = DeviceModification(device, wipe=True, part_table_type="gpt")
+# Create device modification with wipe
+device_modification = DeviceModification(device, wipe=True)
 
 # Define filesystem type
 fs_type = FilesystemType('ext4')
