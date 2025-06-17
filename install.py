@@ -1,227 +1,150 @@
-#!/usr/bin/env python3
-import shutil
-import subprocess
 from pathlib import Path
+from getpass import getpass
+import shutil
 
-import archinstall
-from archinstall import SysInfo, debug, info
-from archinstall.lib import disk, locale, models
-from archinstall.lib.interactions.disk_conf import select_devices, suggest_single_disk_layout
-from archinstall.tui.menu_item import MenuItemGroup
-from archinstall.lib.global_menu import GlobalMenu
+from archinstall.default_profiles.minimal import MinimalProfile
+from archinstall.lib.disk.device_handler import device_handler
+from archinstall.lib.disk.filesystem import FilesystemHandler
 from archinstall.lib.installer import Installer
-from archinstall.lib.models import Bootloader, User
-from archinstall.lib.models.network_configuration import NetworkConfiguration
-from archinstall.lib.utils.util import get_password
-from archinstall.tui import Tui
-from archinstall.tui.types import Alignment
-from archinstall.tui.curses_menu import EditMenu
+from archinstall.lib.models.device_model import (
+    DeviceModification,
+    DiskEncryption,
+    DiskLayoutConfiguration,
+    DiskLayoutType,
+    EncryptionType,
+    FilesystemType,
+    ModificationStatus,
+    PartitionFlag,
+    PartitionModification,
+    PartitionType,
+    Size,
+    Unit,
+)
+from archinstall.lib.models.profile_model import ProfileConfiguration
+from archinstall.lib.models.users import Password, User
+from archinstall.lib.profile.profiles_handler import profile_handler
 
-# --- Globals ---
-# This remains useful for passing the username to the post-install script.
-SUDO_USER: str | None = None
-# These paths are constants and are fine as they are.
-CONFIG_DIR = "/opt/archinstall"
-# It's good practice to ensure this directory exists before trying to move it.
-ISO_CONFIG_DIR = Path("/tmp/archinstall")
-# The mountpoint is now handled more dynamically by the Installer.
-MOUNT_POINT: Path | None = None
+# Prompt user for installation inputs
+device_path = input("Enter the device path (e.g., /dev/sda): ")
+sudo_user = input("Enter sudo user username: ")
+sudo_password = getpass("Enter sudo user password: ")
+root_password = getpass("Enter root password: ")
+hostname = input("Enter hostname: ")
+encryption_password = getpass("Enter disk encryption password: ")
 
+# Get the device
+device = device_handler.get_device(Path(device_path))
+if not device:
+    raise ValueError('No device found for given path')
 
-def ask_user(title="", default_text="") -> str:
-    """Helper function to get user input via a TUI menu. This function is fine."""
-    return (
-        EditMenu(
-            title=title,
-            allow_skip=False,
-            alignment=Alignment.CENTER,
-            default_text=default_text,
-        )
-        .input()
-        .text()
-    )
+# Create device modification with wipe
+device_modification = DeviceModification(device, wipe=True)
 
+# Define filesystem type
+fs_type = FilesystemType('ext4')
 
-def prompt_disk_and_encryption(fs_type="ext4", separate_home=False) -> None:
-    """
-    Guides the user through disk selection, layout suggestion, and encryption setup.
-    This function is updated to use the modern configuration object.
-    """
-    # ** API CHANGE **
-    # We no longer use a global 'Arguments' dictionary.
-    # Instead, we get the central configuration object from archinstall.storage.
-    config = archinstall.storage.config
+# Create boot partition (FAT32, 512 MiB)
+boot_start = Size(1, Unit.MiB, device.device_info.sector_size)
+boot_length = Size(512, Unit.MiB, device.device_info.sector_size)
+boot_partition = PartitionModification(
+    status=ModificationStatus.Create,
+    type=PartitionType.Primary,
+    start=boot_start,
+    length=boot_length,
+    mountpoint=Path('/boot'),
+    fs_type=FilesystemType.Fat32,
+    flags=[PartitionFlag.BOOT],
+)
+device_modification.add_partition(boot_partition)
 
-    block_devices = select_devices()
-    if not block_devices:
-        raise RuntimeError("No suitable block devices found for installation.")
-    
-    # Suggest a layout for the selected device.
-    suggested_layout = suggest_single_disk_layout(
-        block_devices[0], models.FileSystemType(fs_type), separate_home=separate_home
-    )
+# Create root partition (ext4, 20 GiB)
+root_start = boot_start + boot_length
+root_length = Size(20, Unit.GiB, device.device_info.sector_size)
+root_partition = PartitionModification(
+    status=ModificationStatus.Create,
+    type=PartitionType.Primary,
+    start=root_start,
+    length=root_length,
+    mountpoint=None,  # Mounted at / by Installer
+    fs_type=fs_type,
+    mount_options=[],
+)
+device_modification.add_partition(root_partition)
 
-    if MenuItemGroup.yes_no("Do you want to enable disk encryption?"):
-        encryption_password = get_password("Enter disk encryption password: ")
-        
-        # ** API CHANGE **
-        # Instead of creating a separate encryption_config dictionary,
-        # we now set the encryption properties directly on each partition object.
-        # The installer will automatically detect this and set up LUKS.
-        for partition in suggested_layout.partitions:
-            # We encrypt all partitions except the boot partition.
-            if partition.mountpoint not in [Path("/boot"), Path("/boot/efi")]:
-                partition.set_encryption(password=encryption_password)
-    
-    # ** API CHANGE **
-    # We assign the fully configured layout object to the config.
-    config.disk_config = suggested_layout
-    # We also need to tell the installer where to mount everything.
-    # A temporary mountpoint is created by the installer.
-    config.mountpoint = '/mnt/archinstall'
+# Create home partition (ext4, remaining space)
+home_start = root_start + root_length
+home_length = device.device_info.total_size - home_start
+home_partition = PartitionModification(
+    status=ModificationStatus.Create,
+    type=PartitionType.Primary,
+    start=home_start,
+    length=home_length,
+    mountpoint=Path('/home'),
+    fs_type=fs_type,
+    mount_options=[],
+)
+device_modification.add_partition(home_partition)
 
+# Create disk configuration
+disk_config = DiskLayoutConfiguration(
+    config_type=DiskLayoutType.Default,
+    device_modifications=[device_modification],
+)
 
-def configure_system(installation: Installer):
-    """
-    Copies configuration files and runs the post-install script.
-    This function is updated to use the Installer's chroot method.
-    """
-    global SUDO_USER, CONFIG_DIR, ISO_CONFIG_DIR
-    
-    info("Copying configuration files to new system")
-    # The installer instance knows its mountpoint.
-    mount_point = installation.mountpoint
-    target_config_dir = Path(f"{mount_point}{CONFIG_DIR}")
+# Configure disk encryption for root and home partitions
+disk_encryption = DiskEncryption(
+    encryption_password=Password(plaintext=encryption_password),
+    encryption_type=EncryptionType.Luks,
+    partitions=[root_partition, home_partition],
+    hsm_device=None,
+)
+disk_config.disk_encryption = disk_encryption
 
-    # Ensure the source directory exists before trying to move it.
-    if ISO_CONFIG_DIR.exists():
-        # Using copytree is safer for directories.
-        shutil.copytree(ISO_CONFIG_DIR, target_config_dir)
-    else:
-        info(f"Configuration directory {ISO_CONFIG_DIR} not found, skipping copy.")
-        return
+# Perform filesystem operations
+fs_handler = FilesystemHandler(disk_config)
+fs_handler.perform_filesystem_operations(show_countdown=False)
 
-    post_install_script = f"{CONFIG_DIR}/post_install.sh"
-    
-    # ** API CHANGE **
-    # We no longer use a custom `chroot_cmd`. The Installer class
-    # provides a safe and reliable way to run commands in the new system.
-    info("Executing post-install script...")
-    installation.run_in_target(f"chmod +x {post_install_script}")
-    installation.run_in_target(f"{post_install_script} {SUDO_USER}")
+# Define mountpoint
+mountpoint = Path('/mnt')
 
+# Perform the installation
+with Installer(
+    mountpoint,
+    disk_config,
+    kernels=['linux'],
+) as installation:
+    # Mount the filesystem layout
+    installation.mount_ordered_layout()
 
-def perform_installation() -> None:
-    """
-    Performs the main installation steps using the Installer class API.
-    """
-    info("Starting base system installation...")
-    # ** API CHANGE **
-    # The Installer now takes the config object. We retrieve it from storage.
-    config = archinstall.storage.config
-    
-    # The mountpoint is defined in the config, so we pass it to the installer.
-    with Installer(config.mountpoint, config) as installation:
-        
-        # ** LOGIC CHANGE **
-        # The installer now handles ALL disk operations.
-        # It will partition, format, and mount everything based on `config.disk_config`.
-        # We only need to call the high-level installation steps.
-        installation.mount_ordered_layout()
+    # Perform minimal installation with specified hostname
+    installation.minimal_installation(hostname=hostname)
 
-        # These steps remain largely the same.
-        installation.set_mirrors()
-        installation.minimal_installation()
-        installation.add_bootloader()
-        installation.configure_networking()
-        installation.create_users()
-        # The root password is now also stored in the config object.
-        installation.user_set_pw("root", config.root_password)
-        installation.set_timezone()
-        installation.activate_time_synchronization()
-        # The installer now reads the services to enable from the config.
-        for service in config.services:
-            installation.enable_service(service)
-        installation.genfstab()
+    # Add additional packages
+    installation.add_additional_packages(['wget', 'git'])
 
-        # Pass the installer instance to the configure function
-        # so it can run chroot commands.
-        configure_system(installation)
+    # Install minimal profile
+    profile_config = ProfileConfiguration(MinimalProfile())
+    profile_handler.install_profile_config(installation, profile_config)
 
-        if not config.silent:
-            with Tui():
-                if MenuItemGroup.yes_no("Do you want to chroot into the new system for manual changes?"):
-                    info("You will now be dropped into a shell. Type 'exit' to return.")
-                    try:
-                        installation.drop_to_shell()
-                    except Exception as e:
-                        info(f"Could not drop to shell: {e}")
+    # Create sudo user
+    user = User(sudo_user, Password(plaintext=sudo_password), True)
+    installation.create_users(user)
 
+    # Set root password
+    installation.user_set_pw('root', Password(plaintext=root_password))
 
-def main():
-    """Defines configuration and runs the entire installation process."""
-    # ** API CHANGE **
-    # Get the global configuration object.
-    config = archinstall.storage.config
-    
-    # Set default values directly on the config object.
-    config.packages = ['base', 'linux', 'linux-firmware']
-    config.services = ["NetworkManager", "sshd"]
-    config.bootloader = Bootloader.SYSTEMD
-    config.hostname = "archlinux"
-    config.locale_config = models.LocaleConfiguration('en_US.UTF-8', 'en_US')
-    config.swap = True
-    config.uki = True
+    # Enable services from old script
+    installation.enable_service(['NetworkManager', 'sshd'])
 
-    with Tui():
-        # This function now correctly populates `config.disk_config`.
-        prompt_disk_and_encryption()
-        
-        # ** API CHANGE **
-        # We now configure users directly on the config object.
-        global SUDO_USER
-        SUDO_USER = ask_user("Sudo user username", "user")
-        password = get_password(text="Sudo user password")
-        config.users = [User(SUDO_USER, password, sudo=True)]
-        
-        config.root_password = get_password("Enter root password")
-        config.hostname = ask_user("Enter hostname", config.hostname)
+    # Set timezone from old script
+    installation.set_timezone('Europe/Oslo')
 
-        # The menu now reads from and writes to the global config by default.
-        GlobalMenu().run()
+    # Copy configuration files and run post-install script
+    config_source = Path('/tmp/archinstall')
+    config_target = mountpoint / 'opt' / 'archinstall'
+    config_target.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(str(config_source), str(config_target), dirs_exist_ok=True)
+    installation.arch_chroot('chmod +x /opt/archinstall/post_install.sh')
+    installation.arch_chroot(f'/opt/archinstall/post_install.sh {sudo_user}')
 
-    # ** API CHANGE **
-    # The config object has its own save methods.
-    config.save_config()
-    config.save_secure_config()
-    
-    if config.dry_run:
-        print("Dry-run selected, exiting.")
-        exit(0)
-
-    if not config.silent:
-        with Tui():
-            if not MenuItemGroup.yes_no("All configuration is set. Do you want to continue?"):
-                debug("Installation aborted by user.")
-                return
-
-    # ** LOGIC REMOVED **
-    # All manual disk handling (apply, mount) is removed.
-    # The `Installer` instance will manage this based on the `config.disk_config`.
-    
-    perform_installation()
-    
-    info("Installation complete. You can now reboot.")
-
-
-if __name__ == "__main__":
-        
-    # Create the temporary config directory if it doesn't exist
-    # for the post-install script.
-    if not ISO_CONFIG_DIR.exists():
-        ISO_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        print(f"Created temporary config directory at {ISO_CONFIG_DIR}")
-        # You would place your post_install.sh script here.
-
-    main()
-
+print("Installation complete. You can now reboot.")
