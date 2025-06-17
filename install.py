@@ -100,7 +100,7 @@ device_modification.add_partition(root_partition)
 # Calculate remaining space for home partition
 home_start = root_start + root_length
 used_size = boot_length + root_length
-remaining_size = total_disk_size - used_size - Size(1, Unit.MiB)
+remaining_size = total_disk_size - used_size - Size(1, Unit.MiB, device.device_info.sector_size)
 
 # Ensure there is enough space for the home partition (minimum 1 MiB)
 min_home_size = Size(1, Unit.MiB, device.device_info.sector_size)
