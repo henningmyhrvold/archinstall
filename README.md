@@ -42,9 +42,9 @@ python install.py
 
 ## Post-Installation
 1. **Start Terminal**
-    Log in 
-    Type Hyprland
-    Press Super + Enter to open terminal.
+    * Log in 
+    * Type Hyprland
+    * Press Super + Enter to open terminal.
 2.  **Secure Boot**
     ```bash
     enable_secure_boot.sh
