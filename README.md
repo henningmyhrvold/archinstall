@@ -17,6 +17,20 @@ This script automates the installation of a minimal Arch Linux base system, prep
 4.  **Review and Modify Scripts**
     * `pacman_packages.txt`: Add or remove packages for the base install.
     * `post_install.sh`: This script runs at the end of the installation.
+    * `install.py`: This script requires a disk size greater than 21 GB.
+
+5.  **Extended WiFi commands**
+    ```iwctl
+    [iwd]# device list
+    [iwd]# station wlan0 scan
+    [iwd]# station wlan0 get-networks
+    [iwd]# station wlan0 connect "MyWiFi"
+    (Enter passphrase: mysecretpassword)
+    [iwd]# exit
+    ip a
+    systemctl enable --now dhcpcd
+    ping github.com
+    ```
 
 ## Installation
 

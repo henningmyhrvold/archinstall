@@ -33,23 +33,28 @@ devices = device_handler.devices
 if not devices:
     raise ValueError("No devices found")
 
-# Display available devices with numbers and sizes
-print("Available devices:")
-for i, device in enumerate(devices, start=1):
-    size_gib = device.device_info.total_size.format_highest()
-    print(f"{i}. {device.device_info.path} - {size_gib}")
+# Automatically select the device if there is only one
+if len(devices) == 1:
+    selected_device = devices[0]
+    print(f"Only one device found: {selected_device.device_info.path} - {selected_device.device_info.total_size.format_highest()}")
+else:
+    # Display available devices with numbers and sizes
+    print("Available devices:")
+    for i, device in enumerate(devices, start=1):
+        size_gib = device.device_info.total_size.format_highest()
+        print(f"{i}. {device.device_info.path} - {size_gib}")
 
-# Prompt the user to select a device by number
-while True:
-    try:
-        choice = int(input("Enter the number of the device to use: "))
-        if 1 <= choice <= len(devices):
-            selected_device = devices[choice - 1]
-            break
-        else:
-            print("Invalid number. Please try again.")
-    except ValueError:
-        print("Please enter a valid number.")
+    # Prompt the user to select a device by number
+    while True:
+        try:
+            choice = int(input("Enter the number of the device to use: "))
+            if 1 <= choice <= len(devices):
+                selected_device = devices[choice - 1]
+                break
+            else:
+                print("Invalid number. Please try again.")
+        except ValueError:
+            print("Please enter a valid number.")
 
 # Use the selected device
 device = selected_device
