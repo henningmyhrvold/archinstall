@@ -86,7 +86,7 @@ device_modification.add_partition(
     PartitionModification(
         status=ModificationStatus.Create,
         type=PartitionType.Primary,
-        start=start_of_device,  # This line is added
+        start=start_of_device,
         length=Size(512, Unit.MiB, device.device_info.sector_size),
         mountpoint=Path('/boot'),
         fs_type=FilesystemType.Fat32,
@@ -99,7 +99,7 @@ device_modification.add_partition(
     PartitionModification(
         status=ModificationStatus.Create,
         type=PartitionType.Primary,
-        start=start_of_device,  # This line is added
+        start=start_of_device,
         length=Size(20, Unit.GiB, device.device_info.sector_size),
         mountpoint=Path('/'),
         fs_type=fs_type,
@@ -112,8 +112,8 @@ device_modification.add_partition(
     PartitionModification(
         status=ModificationStatus.Create,
         type=PartitionType.Primary,
-        start=start_of_device,  # This line is added
-        length=Size(100, Unit.Percent, device.device_info.sector_size), # Use 100% of the remaining space
+        start=start_of_device,
+        length=Size(0, Unit.B, device.device_info.sector_size), # Use 0 to fill remaining space
         mountpoint=Path('/home'),
         fs_type=fs_type,
         mount_options=[],
@@ -126,16 +126,13 @@ disk_config = DiskLayoutConfiguration(
     device_modifications=[device_modification],
 )
 
-# Important: We need to get the partition objects after they have been planned by the layout
-# The file system handler needs to perform operations before we can get the partitions for encryption
+# Perform filesystem operations to create the actual partitions
 fs_handler = FilesystemHandler(disk_config)
 fs_handler.perform_filesystem_operations(show_countdown=False)
 
-# Re-get the device modification to access the created partitions
-# The previous disk_config is now populated with the actual partition paths
+# Now, retrieve the created partitions from the handler to set up encryption
 root_partition_for_encryption = fs_handler.disk_config.device_modifications[0].partitions[1]
 home_partition_for_encryption = fs_handler.disk_config.device_modifications[0].partitions[2]
-
 
 # Configure disk encryption for root and home partitions
 disk_encryption = DiskEncryption(
@@ -183,7 +180,6 @@ with Installer(
     installation.set_timezone('Europe/Oslo')
 
     # Copy configuration files and run post-install script
-    # Note: Ensure the /tmp/archinstall directory exists on the live USB environment
     config_source = Path('/tmp/archinstall')
     if config_source.exists():
         config_target = mountpoint / 'opt' / 'archinstall'
