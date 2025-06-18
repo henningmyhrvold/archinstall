@@ -158,7 +158,7 @@ with Installer(
     installation.minimal_installation(hostname=hostname)
 
     # Add additional packages
-    installation.add_additional_packages(['wget', 'git'])
+    installation.add_additional_packages(['networkmanager','openssh','wget', 'git'])
 
     # Install minimal profile
     profile_config = ProfileConfiguration(MinimalProfile())
@@ -173,7 +173,7 @@ with Installer(
     installation.set_user_password(root_user)
 
     # Enable services
-    installation.enable_service(['NetworkManager.service', 'sshd'])
+    installation.enable_service(['NetworkManager.service', 'sshd.service'])
 
     # Set timezone
     installation.set_timezone('Europe/Oslo')
