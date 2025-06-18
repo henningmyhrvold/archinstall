@@ -25,11 +25,6 @@ from archinstall.lib.models.profile_model import ProfileConfiguration
 from archinstall.lib.models.users import Password, User
 from archinstall.lib.profile.profiles_handler import profile_handler
 
-# Custom input function to provide default values
-def input_with_default(prompt, default):
-    user_input = input(f"{prompt} [{default}]: ")
-    return user_input.strip() or default
-
 # Warn the user about data loss
 print("WARNING: The selected device will be wiped and all data will be lost.")
 
@@ -38,46 +33,36 @@ devices = device_handler.devices
 if not devices:
     raise ValueError("No devices found")
 
-# Automatically select the device if there is only one
-if len(devices) == 1:
-    selected_device = devices[0]
-    print(f"Only one device found: {selected_device.device_info.path} - {selected_device.device_info.total_size.format_highest()}")
-else:
-    # Display available devices with numbers and sizes
-    print("Available devices:")
-    for i, device in enumerate(devices, start=1):
-        size_gib = device.device_info.total_size.format_highest()
-        print(f"{i}. {device.device_info.path} - {size_gib}")
+# Display available devices with numbers and sizes
+print("Available devices:")
+for i, device in enumerate(devices, start=1):
+    size_gib = device.device_info.total_size.format_highest()
+    print(f"{i}. {device.device_info.path} - {size_gib}")
 
-    # Prompt the user to select a device by number
-    while True:
-        try:
-            choice = int(input("Enter the number of the device to use: "))
-            if 1 <= choice <= len(devices):
-                selected_device = devices[choice - 1]
-                break
-            else:
-                print("Invalid number. Please try again.")
-        except ValueError:
-            print("Please enter a valid number.")
+# Prompt the user to select a device by number
+while True:
+    try:
+        choice = int(input("Enter the number of the device to use: "))
+        if 1 <= choice <= len(devices):
+            selected_device = devices[choice - 1]
+            break
+        else:
+            print("Invalid number. Please try again.")
+    except ValueError:
+        print("Please enter a valid number.")
 
 # Use the selected device
 device = selected_device
 
-# Manually wipe the disk to ensure a clean slate
-print(f"Wiping the disk: {device.device_info.path}")
-subprocess.run(['wipefs', '-a', device.device_info.path], check=True)  # Remove filesystem signatures
-subprocess.run(['sgdisk', '--zap-all', device.device_info.path], check=True)  # Remove partition table
-
-# Prompt user for installation inputs with defaults
-sudo_user = input_with_default("Enter sudo user username", "user")
+# Prompt user for other installation inputs
+sudo_user = input("Enter sudo user username: ")
 sudo_password = getpass("Enter sudo user password: ")
 root_password = getpass("Enter root password: ")
-hostname = input_with_default("Enter hostname", "arch")
+hostname = input("Enter hostname: ")
 encryption_password = getpass("Enter disk encryption password: ")
 
-# Create device modification (wipe=False since we wiped manually)
-device_modification = DeviceModification(device, wipe=False)
+# Create device modification with wipe
+device_modification = DeviceModification(device, wipe=True)
 
 # Define filesystem type
 fs_type = FilesystemType('ext4')
@@ -122,10 +107,10 @@ remaining_size = total_disk_size - used_size - Size(1, Unit.MiB, device.device_i
 min_home_size = Size(1, Unit.MiB, device.device_info.sector_size)
 if remaining_size < min_home_size:
     raise ValueError(
-        "Disk is too small: {total_disk_size.format_highest()} available, "
+        f"Disk is too small: {total_disk_size.format_highest()} available, "
         f"but {(used_size.format_highest())} required for boot and root partitions."
     )
-    
+
 home_length = remaining_size
 home_partition = PartitionModification(
     status=ModificationStatus.Create,
@@ -153,14 +138,9 @@ disk_encryption = DiskEncryption(
 )
 disk_config.disk_encryption = disk_encryption
 
-# Perform filesystem operations with error handling
+# Perform filesystem operations
 fs_handler = FilesystemHandler(disk_config)
-try:
-    fs_handler.perform_filesystem_operations(show_countdown=False)
-except Exception as e:
-    print(f"Error during filesystem operations: {e}")
-    subprocess.run(['lsblk', device.device_info.path])  # Show partition table on error
-    raise
+fs_handler.perform_filesystem_operations(show_countdown=False)
 
 # Define mountpoint
 mountpoint = Path('/mnt')
@@ -178,7 +158,7 @@ with Installer(
     installation.minimal_installation(hostname=hostname)
 
     # Add additional packages
-    installation.add_additional_packages(['networkmanager', 'openssh', 'wget', 'git'])
+    installation.add_additional_packages(['networkmanager','openssh','wget', 'git'])
 
     # Install minimal profile
     profile_config = ProfileConfiguration(MinimalProfile())
