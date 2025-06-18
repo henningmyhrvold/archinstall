@@ -121,11 +121,11 @@ remaining_size = total_disk_size - used_size - Size(1, Unit.MiB, device.device_i
 # Ensure there is enough space for the home partition (minimum 1 MiB)
 min_home_size = Size(1, Unit.MiB, device.device_info.sector_size)
 if remaining_size < min_home_size:
-    raise ValueError(
-        f"Disk is too small: {total_disk_size.format_highest()} available, "
-        f"but {(used_size.format_highest())} required for boot and root partitions."
-    )
-    
+    raise ValueError(
+        "Disk is too small: {total_disk_size.format_highest()} available, "
+        f"but {(used_size.format_highest())} required for boot and root partitions."
+    )
+    
 home_length = remaining_size
 home_partition = PartitionModification(
     status=ModificationStatus.Create,
