@@ -20,7 +20,8 @@ This script automates the installation of a minimal Arch Linux base system, prep
     * `install.py`: This script requires a disk size greater than 21 GB.
 
 5.  **Extended WiFi commands**
-    ```iwctl
+    ```bash
+    iwctl
     [iwd]# device list
     [iwd]# station wlan0 scan
     [iwd]# station wlan0 get-networks
@@ -28,7 +29,6 @@ This script automates the installation of a minimal Arch Linux base system, prep
     (Enter passphrase: mysecretpassword)
     [iwd]# exit
     ip a
-    systemctl enable --now dhcpcd
     ping github.com
     ```
 
