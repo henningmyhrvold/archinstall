@@ -77,61 +77,41 @@ device_modification = DeviceModification(device, wipe=True)
 # Define filesystem type
 fs_type = FilesystemType('ext4')
 
-# Get total disk size as a Size object
-total_disk_size = device.device_info.total_size
-
-# Create boot partition (FAT32, 512 MiB)
-boot_start = Size(1, Unit.MiB, device.device_info.sector_size)
-boot_length = Size(512, Unit.MiB, device.device_info.sector_size)
-boot_partition = PartitionModification(
-    status=ModificationStatus.Create,
-    type=PartitionType.Primary,
-    start=boot_start,
-    length=boot_length,
-    mountpoint=Path('/boot'),
-    fs_type=FilesystemType.Fat32,
-    flags=[PartitionFlag.BOOT],
-)
-device_modification.add_partition(boot_partition)
-
-# Create root partition (ext4, 20 GiB)
-root_start = boot_start + boot_length
-root_length = Size(20, Unit.GiB, device.device_info.sector_size)
-root_partition = PartitionModification(
-    status=ModificationStatus.Create,
-    type=PartitionType.Primary,
-    start=root_start,
-    length=root_length,
-    mountpoint=Path('/'),
-    fs_type=fs_type,
-    mount_options=[],
-)
-device_modification.add_partition(root_partition)
-
-# Calculate remaining space for home partition
-home_start = root_start + root_length
-used_size = boot_length + root_length
-remaining_size = total_disk_size - used_size - Size(1, Unit.MiB, device.device_info.sector_size)
-
-# Ensure there is enough space for the home partition (minimum 1 MiB)
-min_home_size = Size(1, Unit.MiB, device.device_info.sector_size)
-if remaining_size < min_home_size:
-    raise ValueError(
-        f"Disk is too small: {total_disk_size.format_highest()} available, "
-        f"but {(used_size.format_highest())} required for boot and root partitions."
+# Let archinstall create the layout
+# Define a boot partition (512 MiB)
+device_modification.add_partition(
+    PartitionModification(
+        status=ModificationStatus.Create,
+        type=PartitionType.Primary,
+        mountpoint=Path('/boot'),
+        fs_type=FilesystemType.Fat32,
+        length=Size(512, Unit.MiB, device.device_info.sector_size),
+        flags=[PartitionFlag.BOOT],
     )
-
-home_length = remaining_size
-home_partition = PartitionModification(
-    status=ModificationStatus.Create,
-    type=PartitionType.Primary,
-    start=home_start,
-    length=home_length,
-    mountpoint=Path('/home'),
-    fs_type=fs_type,
-    mount_options=[],
 )
-device_modification.add_partition(home_partition)
+
+# Define a root partition (20 GiB)
+device_modification.add_partition(
+    PartitionModification(
+        status=ModificationStatus.Create,
+        type=PartitionType.Primary,
+        mountpoint=Path('/'),
+        fs_type=fs_type,
+        length=Size(20, Unit.GiB, device.device_info.sector_size),
+    )
+)
+
+# Define a home partition to fill the remaining space
+device_modification.add_partition(
+    PartitionModification(
+        status=ModificationStatus.Create,
+        type=PartitionType.Primary,
+        mountpoint=Path('/home'),
+        fs_type=fs_type,
+        length=Size(100, Unit.Percent, device.device_info.sector_size), # Use 100% of the remaining space
+    )
+)
+
 
 # Create disk configuration
 disk_config = DiskLayoutConfiguration(
@@ -140,10 +120,14 @@ disk_config = DiskLayoutConfiguration(
 )
 
 # Configure disk encryption for root and home partitions
+# Important: We need to get the partition objects after they have been planned by the layout
+root_partition_to_encrypt = disk_config.device_modifications[0].partitions[1] # The second partition
+home_partition_to_encrypt = disk_config.device_modifications[0].partitions[2] # The third partition
+
 disk_encryption = DiskEncryption(
     encryption_password=Password(plaintext=encryption_password),
     encryption_type=EncryptionType.Luks,
-    partitions=[root_partition, home_partition],
+    partitions=[root_partition_to_encrypt, home_partition_to_encrypt],
     hsm_device=None,
 )
 disk_config.disk_encryption = disk_encryption
