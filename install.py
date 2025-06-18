@@ -25,6 +25,11 @@ from archinstall.lib.models.profile_model import ProfileConfiguration
 from archinstall.lib.models.users import Password, User
 from archinstall.lib.profile.profiles_handler import profile_handler
 
+# Custom input function to provide default values
+def input_with_default(prompt, default):
+    user_input = input(f"{prompt} [{default}]: ")
+    return user_input.strip() or default
+
 # Warn the user about data loss
 print("WARNING: The selected device will be wiped and all data will be lost.")
 
@@ -59,11 +64,11 @@ else:
 # Use the selected device
 device = selected_device
 
-# Prompt user for other installation inputs
-sudo_user = input("Enter sudo user username: ")
+# Prompt user for installation inputs with defaults
+sudo_user = input_with_default("Enter sudo user username", "user")
 sudo_password = getpass("Enter sudo user password: ")
 root_password = getpass("Enter root password: ")
-hostname = input("Enter hostname: ")
+hostname = input_with_default("Enter hostname", "arch")
 encryption_password = getpass("Enter disk encryption password: ")
 
 # Create device modification with wipe
