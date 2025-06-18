@@ -77,15 +77,19 @@ device_modification = DeviceModification(device, wipe=True)
 # Define filesystem type
 fs_type = FilesystemType('ext4')
 
+# Define a placeholder for the start of partitions
+start_of_device = Size(0, Unit.MiB, device.device_info.sector_size)
+
 # Let archinstall create the layout
 # Define a boot partition (512 MiB)
 device_modification.add_partition(
     PartitionModification(
         status=ModificationStatus.Create,
         type=PartitionType.Primary,
+        start=start_of_device,  # This line is added
+        length=Size(512, Unit.MiB, device.device_info.sector_size),
         mountpoint=Path('/boot'),
         fs_type=FilesystemType.Fat32,
-        length=Size(512, Unit.MiB, device.device_info.sector_size),
         flags=[PartitionFlag.BOOT],
     )
 )
@@ -95,9 +99,11 @@ device_modification.add_partition(
     PartitionModification(
         status=ModificationStatus.Create,
         type=PartitionType.Primary,
+        start=start_of_device,  # This line is added
+        length=Size(20, Unit.GiB, device.device_info.sector_size),
         mountpoint=Path('/'),
         fs_type=fs_type,
-        length=Size(20, Unit.GiB, device.device_info.sector_size),
+        mount_options=[],
     )
 )
 
@@ -106,12 +112,13 @@ device_modification.add_partition(
     PartitionModification(
         status=ModificationStatus.Create,
         type=PartitionType.Primary,
+        start=start_of_device,  # This line is added
+        length=Size(100, Unit.Percent, device.device_info.sector_size), # Use 100% of the remaining space
         mountpoint=Path('/home'),
         fs_type=fs_type,
-        length=Size(100, Unit.Percent, device.device_info.sector_size), # Use 100% of the remaining space
+        mount_options=[],
     )
 )
-
 
 # Create disk configuration
 disk_config = DiskLayoutConfiguration(
@@ -119,22 +126,25 @@ disk_config = DiskLayoutConfiguration(
     device_modifications=[device_modification],
 )
 
-# Configure disk encryption for root and home partitions
 # Important: We need to get the partition objects after they have been planned by the layout
-root_partition_to_encrypt = disk_config.device_modifications[0].partitions[1] # The second partition
-home_partition_to_encrypt = disk_config.device_modifications[0].partitions[2] # The third partition
+# The file system handler needs to perform operations before we can get the partitions for encryption
+fs_handler = FilesystemHandler(disk_config)
+fs_handler.perform_filesystem_operations(show_countdown=False)
 
+# Re-get the device modification to access the created partitions
+# The previous disk_config is now populated with the actual partition paths
+root_partition_for_encryption = fs_handler.disk_config.device_modifications[0].partitions[1]
+home_partition_for_encryption = fs_handler.disk_config.device_modifications[0].partitions[2]
+
+
+# Configure disk encryption for root and home partitions
 disk_encryption = DiskEncryption(
     encryption_password=Password(plaintext=encryption_password),
     encryption_type=EncryptionType.Luks,
-    partitions=[root_partition_to_encrypt, home_partition_to_encrypt],
+    partitions=[root_partition_for_encryption, home_partition_for_encryption],
     hsm_device=None,
 )
 disk_config.disk_encryption = disk_encryption
-
-# Perform filesystem operations
-fs_handler = FilesystemHandler(disk_config)
-fs_handler.perform_filesystem_operations(show_countdown=False)
 
 # Define mountpoint
 mountpoint = Path('/mnt')
@@ -173,11 +183,13 @@ with Installer(
     installation.set_timezone('Europe/Oslo')
 
     # Copy configuration files and run post-install script
+    # Note: Ensure the /tmp/archinstall directory exists on the live USB environment
     config_source = Path('/tmp/archinstall')
-    config_target = mountpoint / 'opt' / 'archinstall'
-    config_target.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(str(config_source), str(config_target), dirs_exist_ok=True)
-    installation.arch_chroot('chmod +x /opt/archinstall/post_install.sh')
-    installation.arch_chroot(f'/opt/archinstall/post_install.sh {sudo_user}')
+    if config_source.exists():
+        config_target = mountpoint / 'opt' / 'archinstall'
+        config_target.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(str(config_source), str(config_target), dirs_exist_ok=True)
+        installation.arch_chroot('chmod +x /opt/archinstall/post_install.sh')
+        installation.arch_chroot(f'/opt/archinstall/post_install.sh {sudo_user}')
 
 print("Installation complete. You can now reboot.")
