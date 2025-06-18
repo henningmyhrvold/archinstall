@@ -86,7 +86,7 @@ fs_type = FilesystemType('ext4')
 total_disk_size = device.device_info.total_size
 
 # Create boot partition (FAT32, 512 MiB)
-boot_start = Size(0, Unit.MiB, device.device_info.sector_size)  # Start at 0 for alignment
+boot_start = Size(1, Unit.MiB, device.device_info.sector_size)
 boot_length = Size(512, Unit.MiB, device.device_info.sector_size)
 boot_partition = PartitionModification(
     status=ModificationStatus.Create,
@@ -100,7 +100,7 @@ boot_partition = PartitionModification(
 device_modification.add_partition(boot_partition)
 
 # Create root partition (ext4, 20 GiB)
-root_start = boot_length  # Start immediately after boot
+root_start = boot_start + boot_length
 root_length = Size(20, Unit.GiB, device.device_info.sector_size)
 root_partition = PartitionModification(
     status=ModificationStatus.Create,
@@ -113,9 +113,20 @@ root_partition = PartitionModification(
 )
 device_modification.add_partition(root_partition)
 
-# Create home partition (ext4, remaining space)
+# Calculate remaining space for home partition
 home_start = root_start + root_length
-home_length = total_disk_size - home_start
+used_size = boot_length + root_length
+remaining_size = total_disk_size - used_size - Size(1, Unit.MiB, device.device_info.sector_size)
+
+# Ensure there is enough space for the home partition (minimum 1 MiB)
+min_home_size = Size(1, Unit.MiB, device.device_info.sector_size)
+if remaining_size < min_home_size:
+    raise ValueError(
+        f"Disk is too small: {total_disk_size.format_highest()} available, "
+        f"but {(used_size.format_highest())} required for boot and root partitions."
+    )
+    
+home_length = remaining_size
 home_partition = PartitionModification(
     status=ModificationStatus.Create,
     type=PartitionType.Primary,
