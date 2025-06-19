@@ -2,7 +2,6 @@ from pathlib import Path
 from getpass import getpass
 import subprocess
 import shutil
-import time
 
 from archinstall.default_profiles.minimal import MinimalProfile
 from archinstall.lib.disk.device_handler import device_handler
@@ -25,9 +24,6 @@ from archinstall.lib.models.device_model import (
 from archinstall.lib.models.profile_model import ProfileConfiguration
 from archinstall.lib.models.users import Password, User
 from archinstall.lib.profile.profiles_handler import profile_handler
-
-# Define filesystem type
-fs_type = FilesystemType('ext4')
 
 # Custom input function to provide default values
 def input_with_default(prompt, default):
@@ -69,51 +65,63 @@ else:
 device = selected_device
 
 # Prompt user for installation inputs with defaults
-hostname = input_with_default("Enter hostname", "arch")
 sudo_user = input_with_default("Enter sudo user username", "user")
 sudo_password = getpass("Enter sudo user password: ")
 root_password = getpass("Enter root password: ")
+hostname = input_with_default("Enter hostname", "arch")
 encryption_password = getpass("Enter disk encryption password: ")
 
 # Create device modification with wipe
 device_modification = DeviceModification(device, wipe=True)
 
-# create a new boot partition
+# Define filesystem type
+fs_type = FilesystemType('ext4')
+
+# Get total disk size as a Size object
+total_disk_size = device.device_info.total_size
+
+# Create boot partition (FAT32, 512 MiB)
+boot_start = Size(1, Unit.MiB, device.device_info.sector_size)
+boot_length = Size(512, Unit.MiB, device.device_info.sector_size)
 boot_partition = PartitionModification(
-	status=ModificationStatus.Create,
-	type=PartitionType.Primary,
-	start=Size(1, Unit.MiB, device.device_info.sector_size),
-	length=Size(512, Unit.MiB, device.device_info.sector_size),
-	mountpoint=Path('/boot'),
-	fs_type=FilesystemType.Fat32,
-	flags=[PartitionFlag.BOOT],
+    status=ModificationStatus.Create,
+    type=PartitionType.Primary,
+    start=boot_start,
+    length=boot_length,
+    mountpoint=Path('/boot'),
+    fs_type=FilesystemType.Fat32,
+    flags=[PartitionFlag.BOOT],
 )
 device_modification.add_partition(boot_partition)
 
-# create a root partition
+# Create root partition (ext4, 20 GiB)
+root_start = boot_start + boot_length
+root_length = Size(20, Unit.GiB, device.device_info.sector_size)
 root_partition = PartitionModification(
-	status=ModificationStatus.Create,
-	type=PartitionType.Primary,
-	start=Size(513, Unit.MiB, device.device_info.sector_size),
-	length=Size(20, Unit.GiB, device.device_info.sector_size),
+    status=ModificationStatus.Create,
+    type=PartitionType.Primary,
+    start=root_start,
+    length=root_length,
     mountpoint=Path('/'),
     fs_type=fs_type,
     mount_options=[],
 )
 device_modification.add_partition(root_partition)
 
-start_home = root_partition.length
-length_home = device.device_info.total_size - start_home
+# Calculate remaining space for home partition
+home_start = root_start + root_length
+used_size = boot_length + root_length
+remaining_size = total_disk_size - used_size - Size(1, Unit.MiB, device.device_info.sector_size)
 
-# create a new home partition
+home_length = remaining_size
 home_partition = PartitionModification(
-	status=ModificationStatus.Create,
-	type=PartitionType.Primary,
-	start=start_home,
-	length=length_home,
-	mountpoint=Path('/home'),
-	fs_type=fs_type,
-	mount_options=[],
+    status=ModificationStatus.Create,
+    type=PartitionType.Primary,
+    start=home_start,
+    length=home_length,
+    mountpoint=Path('/home'),
+    fs_type=fs_type,
+    mount_options=[],
 )
 device_modification.add_partition(home_partition)
 
@@ -123,7 +131,7 @@ disk_config = DiskLayoutConfiguration(
     device_modifications=[device_modification],
 )
 
-# Configure disk encryption
+# Configure disk encryption for root and home partitions
 disk_encryption = DiskEncryption(
     encryption_password=Password(plaintext=encryption_password),
     encryption_type=EncryptionType.Luks,
@@ -132,20 +140,14 @@ disk_encryption = DiskEncryption(
 )
 disk_config.disk_encryption = disk_encryption
 
-# Perform filesystem operations (creates partitions, formats, and sets up encryption)
-print("Creating partitions, formatting, and setting up encryption...")
+# Perform filesystem operations
 fs_handler = FilesystemHandler(disk_config)
-time.sleep(5)
+
+# Add debug to list partitions
+print("Checking partitions before formatting...")
+subprocess.run(['lsblk', '-f'], check=True)
 
 fs_handler.perform_filesystem_operations(show_countdown=False)
-print("...filesystem operations complete.")
-
-# Ensure the system recognizes the new partitions
-print("Waiting for kernel to recognize new partitions...")
-subprocess.run(['partprobe', device.device_info.path], check=True)
-subprocess.run(['udevadm', 'settle'], check=True)
-time.sleep(5)
-print("...partitions recognized.")
 
 # Define mountpoint
 mountpoint = Path('/tmp')
@@ -163,7 +165,7 @@ with Installer(
     installation.minimal_installation(hostname=hostname)
 
     # Add additional packages
-    installation.add_additional_packages(['networkmanager', 'openssh', 'wget', 'git'])
+    installation.add_additional_packages(['networkmanager','openssh','wget', 'git'])
 
     # Install minimal profile
     profile_config = ProfileConfiguration(MinimalProfile())
