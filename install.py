@@ -154,27 +154,7 @@ print("Creating partitions, formatting, and setting up encryption...")
 fs_handler = FilesystemHandler(disk_config)
 time.sleep(5)
 
-# Create the new partitions on disk
-print("Creating partitions...")
-fs_handler._format_partitions(disk_config.device_modifications, disk_config.disk_encryption)
-
-# Force the kernel to re-read the partition table and wait for it
-print("Waiting for kernel to recognize new partitions...")
-subprocess.run(['partprobe', device.device_info.path], check=True)
-subprocess.run(['udevadm', 'settle'], check=True)
-time.sleep(5) # A brief pause for extra safety
-
-# Now that partitions are recognized, format them
-print("Formatting partitions and setting up encryption...")
-for mod in fs_handler.disk_config.device_modifications:
-    fs_handler._format_partitions(
-        mod.partitions,
-        mod.device_path,
-        fs_handler.disk_config.disk_encryption
-    )
-
-# --- END: MODIFIED LOGIC ---
-
+fs_handler.perform_filesystem_operations(show_countdown=True)
 print("...filesystem operations complete.")
 
 # Ensure the system recognizes the new partitions
