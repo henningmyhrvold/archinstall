@@ -133,13 +133,13 @@ home_partition = PartitionModification(
 )
 device_modification.add_partition(home_partition)
 
-# Create disk configuration (this object is now primarily for the installer later)
+# Create disk configuration (this object is used by the FilesystemHandler and Installer)
 disk_config = DiskLayoutConfiguration(
     config_type=DiskLayoutType.Default,
     device_modifications=[device_modification],
 )
 
-# Configure disk encryption for root and home partitions
+# Configure disk encryption
 disk_encryption = DiskEncryption(
     encryption_password=Password(plaintext=encryption_password),
     encryption_type=EncryptionType.Luks,
@@ -148,26 +148,21 @@ disk_encryption = DiskEncryption(
 )
 disk_config.disk_encryption = disk_encryption
 
-# --- Step 1: Commit *only* the partition layout to the disk ---
-# This uses sfdisk/parted to write the partition table and nothing else.
+# --- Step 1: Create and Commit the Partition Layout ---
+# This uses the clean, direct method you found on the DeviceHandler.
 print(f"Writing partition table to {device.device_info.path}...")
-from archinstall.lib.disk import commit
-commit(device_modification)
+device_handler.partition(device_modification)
 print("...partition table written.")
 
 # --- Step 2: Force the system to recognize the new partitions ---
-# On fast hardware, this is the CRITICAL step.
-# partprobe tells the kernel to re-read the partition table.
-# udevadm settle waits for the system to finish creating the device nodes (e.g., /dev/nvme0n1p3).
+# This remains the critical step to prevent the race condition.
 print("Waiting for kernel to recognize new partitions...")
-# THIS IS THE CORRECTED LINE:
 subprocess.run(['partprobe', device.device_info.path], check=True)
 subprocess.run(['udevadm', 'settle'], check=True)
 print("...partitions recognized.")
 
 # --- Step 3: Perform filesystem operations on the now-existing partitions ---
-# Now that the partitions are guaranteed to exist, we can safely
-# ask archinstall to format, encrypt, and mount them.
+# This call will now succeed because the partitions are guaranteed to be visible to the kernel.
 print("Formatting partitions and setting up encryption...")
 fs_handler = FilesystemHandler(disk_config)
 fs_handler.perform_filesystem_operations(show_countdown=False)
