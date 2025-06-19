@@ -2,6 +2,7 @@ from pathlib import Path
 from getpass import getpass
 import subprocess
 import shutil
+import time
 
 from archinstall.default_profiles.minimal import MinimalProfile
 from archinstall.lib.disk.device_handler import device_handler
@@ -133,7 +134,7 @@ home_partition = PartitionModification(
 )
 device_modification.add_partition(home_partition)
 
-# Create disk configuration (this object is used by the FilesystemHandler and Installer)
+# Create disk configuration
 disk_config = DiskLayoutConfiguration(
     config_type=DiskLayoutType.Default,
     device_modifications=[device_modification],
@@ -148,30 +149,18 @@ disk_encryption = DiskEncryption(
 )
 disk_config.disk_encryption = disk_encryption
 
-# Create and Commit the Partition Layout
-# This uses the clean, direct method on the DeviceHandler.
-print(f"Writing partition table to {device.device_info.path}...")
-device_handler.partition(device_modification)
-print("...partition table written.")
+# Perform filesystem operations (creates partitions, formats, and sets up encryption)
+print("Creating partitions, formatting, and setting up encryption...")
+fs_handler = FilesystemHandler(disk_config)
+fs_handler.perform_filesystem_operations(show_countdown=False)
+print("...filesystem operations complete.")
 
-# After the initial wipe and partitioning, set wipe=False.
-# This prevents the FilesystemHandler from wiping the disk again.
-device_modification.wipe = False
-
-# Force the system to recognize the new partitions
-# This prevents the race condition.
+# Ensure the system recognizes the new partitions
 print("Waiting for kernel to recognize new partitions...")
 subprocess.run(['partprobe', device.device_info.path], check=True)
 subprocess.run(['udevadm', 'settle'], check=True)
+time.sleep(5)
 print("...partitions recognized.")
-
-# Perform filesystem operations on the now-existing partitions
-# This will now only format and encrypt, without wiping.
-print("Formatting partitions and setting up encryption...")
-fs_handler = FilesystemHandler(disk_config)
-fs_handler.perform_filesystem_operations(show_countdown=False)
-# This print statement might not be reached if the script continues correctly
-# print("...filesystem operations complete.")
 
 # Define mountpoint
 mountpoint = Path('/mnt')
@@ -189,7 +178,7 @@ with Installer(
     installation.minimal_installation(hostname=hostname)
 
     # Add additional packages
-    installation.add_additional_packages(['networkmanager','openssh','wget', 'git'])
+    installation.add_additional_packages(['networkmanager', 'openssh', 'wget', 'git'])
 
     # Install minimal profile
     profile_config = ProfileConfiguration(MinimalProfile())
