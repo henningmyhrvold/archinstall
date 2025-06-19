@@ -150,7 +150,7 @@ disk_config.disk_encryption = disk_encryption
 
 # --- Step 1: Commit *only* the partition layout to the disk ---
 # This uses sfdisk/parted to write the partition table and nothing else.
-print(f"Writing partition table to {device.path}...")
+print(f"Writing partition table to {device.device_info.path}...")
 from archinstall.lib.disk import commit
 commit(device_modification)
 print("...partition table written.")
@@ -160,7 +160,8 @@ print("...partition table written.")
 # partprobe tells the kernel to re-read the partition table.
 # udevadm settle waits for the system to finish creating the device nodes (e.g., /dev/nvme0n1p3).
 print("Waiting for kernel to recognize new partitions...")
-subprocess.run(['partprobe', device.path], check=True)
+# THIS IS THE CORRECTED LINE:
+subprocess.run(['partprobe', device.device_info.path], check=True)
 subprocess.run(['udevadm', 'settle'], check=True)
 print("...partitions recognized.")
 
