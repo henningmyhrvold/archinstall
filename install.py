@@ -148,25 +148,30 @@ disk_encryption = DiskEncryption(
 )
 disk_config.disk_encryption = disk_encryption
 
-# --- Step 1: Create and Commit the Partition Layout ---
-# This uses the clean, direct method you found on the DeviceHandler.
+# Create and Commit the Partition Layout
+# This uses the clean, direct method on the DeviceHandler.
 print(f"Writing partition table to {device.device_info.path}...")
 device_handler.partition(device_modification)
 print("...partition table written.")
 
-# --- Step 2: Force the system to recognize the new partitions ---
-# This remains the critical step to prevent the race condition.
+# After the initial wipe and partitioning, set wipe=False.
+# This prevents the FilesystemHandler from wiping the disk again.
+device_modification.wipe = False
+
+# Force the system to recognize the new partitions
+# This prevents the race condition.
 print("Waiting for kernel to recognize new partitions...")
 subprocess.run(['partprobe', device.device_info.path], check=True)
 subprocess.run(['udevadm', 'settle'], check=True)
 print("...partitions recognized.")
 
-# --- Step 3: Perform filesystem operations on the now-existing partitions ---
-# This call will now succeed because the partitions are guaranteed to be visible to the kernel.
+# Perform filesystem operations on the now-existing partitions
+# This will now only format and encrypt, without wiping.
 print("Formatting partitions and setting up encryption...")
 fs_handler = FilesystemHandler(disk_config)
 fs_handler.perform_filesystem_operations(show_countdown=False)
-print("...filesystem operations complete.")
+# This print statement might not be reached if the script continues correctly
+# print("...filesystem operations complete.")
 
 # Define mountpoint
 mountpoint = Path('/mnt')
