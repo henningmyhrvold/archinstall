@@ -133,7 +133,7 @@ home_partition = PartitionModification(
 )
 device_modification.add_partition(home_partition)
 
-# Create disk configuration
+# Create disk configuration (this object is now primarily for the installer later)
 disk_config = DiskLayoutConfiguration(
     config_type=DiskLayoutType.Default,
     device_modifications=[device_modification],
@@ -148,16 +148,29 @@ disk_encryption = DiskEncryption(
 )
 disk_config.disk_encryption = disk_encryption
 
-# On fast physical hardware (especially NVMe), we need to wait for the kernel
-# to process the partition table changes before we can format the new partitions.
-# `udevadm settle` waits for the device manager's event queue to become empty.
-print("Waiting for udev to settle partition changes...")
-subprocess.run(['udevadm', 'settle'], check=True)
-print("...udev has settled.")
+# --- Step 1: Commit *only* the partition layout to the disk ---
+# This uses sfdisk/parted to write the partition table and nothing else.
+print(f"Writing partition table to {device.path}...")
+from archinstall.lib.disk import commit
+commit(device_modification)
+print("...partition table written.")
 
-# Perform filesystem operations
+# --- Step 2: Force the system to recognize the new partitions ---
+# On fast hardware, this is the CRITICAL step.
+# partprobe tells the kernel to re-read the partition table.
+# udevadm settle waits for the system to finish creating the device nodes (e.g., /dev/nvme0n1p3).
+print("Waiting for kernel to recognize new partitions...")
+subprocess.run(['partprobe', device.path], check=True)
+subprocess.run(['udevadm', 'settle'], check=True)
+print("...partitions recognized.")
+
+# --- Step 3: Perform filesystem operations on the now-existing partitions ---
+# Now that the partitions are guaranteed to exist, we can safely
+# ask archinstall to format, encrypt, and mount them.
+print("Formatting partitions and setting up encryption...")
 fs_handler = FilesystemHandler(disk_config)
 fs_handler.perform_filesystem_operations(show_countdown=False)
+print("...filesystem operations complete.")
 
 # Define mountpoint
 mountpoint = Path('/mnt')
