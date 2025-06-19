@@ -156,7 +156,7 @@ time.sleep(5)
 
 # Create the new partitions on disk
 print("Creating partitions...")
-fs_handler._create_partitions(fs_handler.disk_config.device_modifications, fs_handler.disk_config.disk_encryption)
+fs_handler._format_partitions(fs_handler.disk_config.device_modifications, fs_handler.disk_config.disk_encryption)
 
 # Force the kernel to re-read the partition table and wait for it
 print("Waiting for kernel to recognize new partitions...")
