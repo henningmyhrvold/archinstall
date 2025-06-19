@@ -26,6 +26,9 @@ from archinstall.lib.models.profile_model import ProfileConfiguration
 from archinstall.lib.models.users import Password, User
 from archinstall.lib.profile.profiles_handler import profile_handler
 
+# Define filesystem type
+fs_type = FilesystemType('ext4')
+
 # Custom input function to provide default values
 def input_with_default(prompt, default):
     user_input = input(f"{prompt} [{default}]: ")
@@ -75,62 +78,42 @@ encryption_password = getpass("Enter disk encryption password: ")
 # Create device modification with wipe
 device_modification = DeviceModification(device, wipe=True)
 
-# Define filesystem type
-fs_type = FilesystemType('ext4')
-
-# Get total disk size as a Size object
-total_disk_size = device.device_info.total_size
-
-# Create boot partition (FAT32, 512 MiB)
-boot_start = Size(1, Unit.MiB, device.device_info.sector_size)
-boot_length = Size(512, Unit.MiB, device.device_info.sector_size)
+# create a new boot partition
 boot_partition = PartitionModification(
-    status=ModificationStatus.Create,
-    type=PartitionType.Primary,
-    start=boot_start,
-    length=boot_length,
-    mountpoint=Path('/boot'),
-    fs_type=FilesystemType.Fat32,
-    flags=[PartitionFlag.BOOT],
+	status=ModificationStatus.Create,
+	type=PartitionType.Primary,
+	start=Size(1, Unit.MiB, device.device_info.sector_size),
+	length=Size(512, Unit.MiB, device.device_info.sector_size),
+	mountpoint=Path('/boot'),
+	fs_type=FilesystemType.Fat32,
+	flags=[PartitionFlag.BOOT],
 )
 device_modification.add_partition(boot_partition)
 
-# Create root partition (ext4, 20 GiB)
-root_start = boot_start + boot_length
-root_length = Size(20, Unit.GiB, device.device_info.sector_size)
+# create a root partition
 root_partition = PartitionModification(
-    status=ModificationStatus.Create,
-    type=PartitionType.Primary,
-    start=root_start,
-    length=root_length,
+	status=ModificationStatus.Create,
+	type=PartitionType.Primary,
+	start=Size(513, Unit.MiB, device.device_info.sector_size),
+	length=Size(20, Unit.GiB, device.device_info.sector_size),
     mountpoint=Path('/'),
     fs_type=fs_type,
     mount_options=[],
 )
 device_modification.add_partition(root_partition)
 
-# Calculate remaining space for home partition
-home_start = root_start + root_length
-used_size = boot_length + root_length
-remaining_size = total_disk_size - used_size - Size(1, Unit.MiB, device.device_info.sector_size)
+start_home = root_partition.length
+length_home = device.device_info.total_size - start_home
 
-# Ensure there is enough space for the home partition (minimum 1 MiB)
-min_home_size = Size(1, Unit.MiB, device.device_info.sector_size)
-if remaining_size < min_home_size:
-    raise ValueError(
-        f"Disk is too small: {total_disk_size.format_highest()} available, "
-        f"but {(used_size.format_highest())} required for boot and root partitions."
-    )
-
-home_length = remaining_size
+# create a new home partition
 home_partition = PartitionModification(
-    status=ModificationStatus.Create,
-    type=PartitionType.Primary,
-    start=home_start,
-    length=home_length,
-    mountpoint=Path('/home'),
-    fs_type=fs_type,
-    mount_options=[],
+	status=ModificationStatus.Create,
+	type=PartitionType.Primary,
+	start=start_home,
+	length=length_home,
+	mountpoint=Path('/home'),
+	fs_type=fs_type,
+	mount_options=[],
 )
 device_modification.add_partition(home_partition)
 
@@ -144,7 +127,7 @@ disk_config = DiskLayoutConfiguration(
 disk_encryption = DiskEncryption(
     encryption_password=Password(plaintext=encryption_password),
     encryption_type=EncryptionType.Luks,
-    partitions=[root_partition, home_partition],
+    partitions=[home_partition],
     hsm_device=None,
 )
 disk_config.disk_encryption = disk_encryption
@@ -154,7 +137,7 @@ print("Creating partitions, formatting, and setting up encryption...")
 fs_handler = FilesystemHandler(disk_config)
 time.sleep(5)
 
-fs_handler.perform_filesystem_operations(show_countdown=True)
+fs_handler.perform_filesystem_operations(show_countdown=False)
 print("...filesystem operations complete.")
 
 # Ensure the system recognizes the new partitions
@@ -165,7 +148,7 @@ time.sleep(5)
 print("...partitions recognized.")
 
 # Define mountpoint
-mountpoint = Path('/mnt')
+mountpoint = Path('/tmp')
 
 # Perform the installation
 with Installer(
