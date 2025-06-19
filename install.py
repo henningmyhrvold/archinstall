@@ -148,6 +148,13 @@ disk_encryption = DiskEncryption(
 )
 disk_config.disk_encryption = disk_encryption
 
+# On fast physical hardware (especially NVMe), we need to wait for the kernel
+# to process the partition table changes before we can format the new partitions.
+# `udevadm settle` waits for the device manager's event queue to become empty.
+print("Waiting for udev to settle partition changes...")
+subprocess.run(['udevadm', 'settle'], check=True)
+print("...udev has settled.")
+
 # Perform filesystem operations
 fs_handler = FilesystemHandler(disk_config)
 fs_handler.perform_filesystem_operations(show_countdown=False)
