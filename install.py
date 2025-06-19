@@ -154,10 +154,6 @@ print("Creating partitions, formatting, and setting up encryption...")
 fs_handler = FilesystemHandler(disk_config)
 time.sleep(5)
 
-# Wipe the disk's partition table and metadata
-print("Wiping partitions and metadata...")
-fs_handler._wipe_partitions(fs_handler.disk_config.device_modifications, fs_handler.disk_config.disk_encryption)
-
 # Create the new partitions on disk
 print("Creating partitions...")
 fs_handler._create_partitions(fs_handler.disk_config.device_modifications, fs_handler.disk_config.disk_encryption)
