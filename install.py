@@ -66,10 +66,10 @@ else:
 device = selected_device
 
 # Prompt user for installation inputs with defaults
+hostname = input_with_default("Enter hostname", "arch")
 sudo_user = input_with_default("Enter sudo user username", "user")
 sudo_password = getpass("Enter sudo user password: ")
 root_password = getpass("Enter root password: ")
-hostname = input_with_default("Enter hostname", "arch")
 encryption_password = getpass("Enter disk encryption password: ")
 
 # Create device modification with wipe
@@ -152,7 +152,8 @@ disk_config.disk_encryption = disk_encryption
 # Perform filesystem operations (creates partitions, formats, and sets up encryption)
 print("Creating partitions, formatting, and setting up encryption...")
 fs_handler = FilesystemHandler(disk_config)
-fs_handler.perform_filesystem_operations(show_countdown=False)
+time.sleep(5)
+fs_handler.perform_filesystem_operations(show_countdown=True)
 print("...filesystem operations complete.")
 
 # Ensure the system recognizes the new partitions
