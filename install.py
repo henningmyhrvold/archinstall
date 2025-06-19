@@ -2,6 +2,7 @@ from pathlib import Path
 from getpass import getpass
 import subprocess
 import shutil
+import time
 
 from archinstall.default_profiles.minimal import MinimalProfile
 from archinstall.lib.disk.device_handler import device_handler
@@ -145,6 +146,7 @@ fs_handler = FilesystemHandler(disk_config)
 
 # Add debug to list partitions
 print("Checking partitions before formatting...")
+sleep(10)
 subprocess.run(['lsblk', '-f'], check=True)
 
 fs_handler.perform_filesystem_operations(show_countdown=False)
