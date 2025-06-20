@@ -92,9 +92,9 @@ boot_partition = PartitionModification(
 )
 device_modification.add_partition(boot_partition)
 
-# Create root partition (ext4, 20 GiB)
+# Create root partition (ext4, remaining space)
 root_start = boot_start + boot_length
-root_length = Size(20, Unit.GiB, device.device_info.sector_size)
+root_length = total_disk_size - root_start - Size(1, Unit.MiB, device.device_info.sector_size)
 root_partition = PartitionModification(
     status=ModificationStatus.Create,
     type=PartitionType.Primary,
@@ -106,42 +106,17 @@ root_partition = PartitionModification(
 )
 device_modification.add_partition(root_partition)
 
-# Calculate remaining space for home partition
-home_start = root_start + root_length
-used_size = boot_length + root_length
-remaining_size = total_disk_size - used_size - Size(1, Unit.MiB, device.device_info.sector_size)
-
-# Ensure there is enough space for the home partition (minimum 1 MiB)
-min_home_size = Size(1, Unit.MiB, device.device_info.sector_size)
-if remaining_size < min_home_size:
-    raise ValueError(
-        f"Disk is too small: {total_disk_size.format_highest()} available, "
-        f"but {(used_size.format_highest())} required for boot and root partitions."
-    )
-
-home_length = remaining_size
-home_partition = PartitionModification(
-    status=ModificationStatus.Create,
-    type=PartitionType.Primary,
-    start=home_start,
-    length=home_length,
-    mountpoint=Path('/home'),
-    fs_type=fs_type,
-    mount_options=[],
-)
-device_modification.add_partition(home_partition)
-
 # Create disk configuration
 disk_config = DiskLayoutConfiguration(
     config_type=DiskLayoutType.Default,
     device_modifications=[device_modification],
 )
 
-# Configure disk encryption for root and home partitions
+# Configure disk encryption for root partition
 disk_encryption = DiskEncryption(
     encryption_password=Password(plaintext=encryption_password),
     encryption_type=EncryptionType.Luks,
-    partitions=[root_partition, home_partition],
+    partitions=[root_partition],
     hsm_device=None,
 )
 disk_config.disk_encryption = disk_encryption
@@ -166,7 +141,7 @@ with Installer(
     installation.minimal_installation(hostname=hostname)
 
     # Add additional packages
-    installation.add_additional_packages(['networkmanager','openssh','wget', 'git'])
+    installation.add_additional_packages(['networkmanager', 'openssh', 'wget', 'git'])
 
     # Install minimal profile
     profile_config = ProfileConfiguration(MinimalProfile())
