@@ -143,12 +143,6 @@ disk_config.disk_encryption = disk_encryption
 
 # Perform filesystem operations
 fs_handler = FilesystemHandler(disk_config)
-
-# Add debug to list partitions
-print("Checking partitions before formatting...")
-time.sleep(10)
-subprocess.run(['lsblk', '-f'], check=True)
-
 fs_handler.perform_filesystem_operations(show_countdown=False)
 
 # Define mountpoint
