@@ -67,7 +67,7 @@ device = selected_device
 
 # Prompt user for installation inputs with defaults
 hostname = input_with_default("Enter hostname", "arch")
-sudo_user = input_with_default("Enter sudo user username", "user")
+sudo_user = input_with_default("Enter sudo user username", "hm")
 sudo_password = getpass("Enter sudo user password: ")
 root_password = getpass("Enter root password: ")
 encryption_password = getpass("Enter disk encryption password: ")
