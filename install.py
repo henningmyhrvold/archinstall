@@ -146,7 +146,7 @@ fs_handler = FilesystemHandler(disk_config)
 
 # Add debug to list partitions
 print("Checking partitions before formatting...")
-sleep(10)
+time.sleep(10)
 subprocess.run(['lsblk', '-f'], check=True)
 
 fs_handler.perform_filesystem_operations(show_countdown=False)
