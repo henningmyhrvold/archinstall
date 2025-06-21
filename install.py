@@ -10,10 +10,8 @@ from archinstall.lib.disk.filesystem import FilesystemHandler
 from archinstall.lib.installer import Installer
 from archinstall.lib.models.device_model import (
     DeviceModification,
-    DiskEncryption,
     DiskLayoutConfiguration,
     DiskLayoutType,
-    EncryptionType,
     FilesystemType,
     ModificationStatus,
     PartitionFlag,
@@ -67,7 +65,6 @@ hostname = input_with_default("Enter hostname", "arch")
 sudo_user = input_with_default("Enter sudo user username", "hm")
 sudo_password = getpass("Enter sudo user password: ")
 root_password = getpass("Enter root password: ")
-encryption_password = getpass("Enter disk encryption password: ")
 
 # Create device modification with wipe
 device_modification = DeviceModification(device, wipe=True)
@@ -112,15 +109,6 @@ disk_config = DiskLayoutConfiguration(
     device_modifications=[device_modification],
 )
 
-# Configure disk encryption for root partition
-disk_encryption = DiskEncryption(
-    encryption_password=Password(plaintext=encryption_password),
-    encryption_type=EncryptionType.Luks,
-    partitions=[root_partition],
-    hsm_device=None,
-)
-disk_config.disk_encryption = disk_encryption
-
 # Perform filesystem operations
 fs_handler = FilesystemHandler(disk_config)
 fs_handler.perform_filesystem_operations(show_countdown=False)
@@ -140,7 +128,7 @@ with Installer(
     # Perform minimal installation with specified hostname
     installation.minimal_installation(hostname=hostname)
 
-    # Add additional packa
+    # Add additional packages
     installation.add_additional_packages(['networkmanager', 'openssh', 'git'])
 
     # Install minimal profile
