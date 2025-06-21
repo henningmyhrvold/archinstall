@@ -141,7 +141,7 @@ with Installer(
     installation.minimal_installation(hostname=hostname)
 
     # Add additional packa
-    installation.add_additional_packages(['networkmanager', 'openssh', 'wget', 'refind', 'reflector', 'git'])
+    installation.add_additional_packages(['networkmanager', 'openssh', 'git'])
 
     # Install minimal profile
     profile_config = ProfileConfiguration(MinimalProfile())
