@@ -149,12 +149,50 @@ with Installer(
     # Set timezone
     installation.set_timezone('Europe/Oslo')
 
-    # Copy configuration files and run post-install script
+    # Copy configuration files
     config_source = Path('/tmp/archinstall')
     config_target = mountpoint / 'opt' / 'archinstall'
     config_target.mkdir(parents=True, exist_ok=True)
+    # Use dirs_exist_ok for compatibility with Python > 3.8
     shutil.copytree(str(config_source), str(config_target), dirs_exist_ok=True)
+    
+    # Make the post-install script executable within the new system
     installation.arch_chroot('chmod +x /opt/archinstall/post_install.sh')
-    installation.arch_chroot(f'/opt/archinstall/post_install.sh {sudo_user}')
 
-print("Installation complete. You can now reboot.")
+# Now, run the post-install script using subprocess to stream its output
+print("\n--- Running post-install script ---")
+command = [
+    'arch-chroot',
+    str(mountpoint),
+    '/opt/archinstall/post_install.sh',
+    sudo_user
+]
+
+try:
+    # Use subprocess.Popen to execute the command and capture its output
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, # Redirect stderr to stdout to see errors
+        text=True, # Decode output as text using default encoding
+        bufsize=1, # Use line-buffering
+        universal_newlines=True # Handle newlines consistently
+    )
+
+    # Read and print output line-by-line in real-time
+    if process.stdout:
+        for line in iter(process.stdout.readline, ''):
+            print(line, end='') # Print the line as it's received
+
+    # Wait for the process to complete
+    process.wait()
+
+    if process.returncode == 0:
+        print("\n--- Post-install script completed successfully ---")
+        print("\nInstallation complete. You can now reboot.")
+    else:
+        print(f"\n--- Post-install script failed with exit code {process.returncode} ---")
+        print("Please check the output above for errors.")
+
+except Exception as e:
+    print(f"\nAn unexpected error occurred: {e}")
