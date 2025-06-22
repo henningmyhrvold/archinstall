@@ -27,8 +27,8 @@ from archinstall.lib.models.users import Password, User
 from archinstall.lib.profile.profiles_handler import profile_handler
 
 # Check for UEFI mode
-if not os.path.exists('/sys/firmware/efi'):
-    raise SystemExit("Error: This script requires a UEFI system. BIOS systems are not supported.")
+#if not os.path.exists('/sys/firmware/efi'):
+#    raise SystemExit("Error: This script requires a UEFI system. BIOS systems are not supported.")
 
 # Custom input function to provide default values
 def input_with_default(prompt, default):
