@@ -91,7 +91,7 @@ boot_partition = PartitionModification(
     length=boot_length,
     mountpoint=Path('/boot/efi'),
     fs_type=FilesystemType.Fat32,
-    flags=[PartitionFlag.BOOT],
+    flags=[PartitionFlag.BOOT, PartitionFlag.EFI],
 )
 device_modification.add_partition(boot_partition)
 
@@ -122,6 +122,10 @@ fs_handler.perform_filesystem_operations(show_countdown=False)
 # Define mountpoint
 mountpoint = Path('/mnt')
 
+# Ensure /boot/efi directory exists before mounting layout
+boot_efi_dir = mountpoint / 'boot' / 'efi'
+boot_efi_dir.mkdir(parents=True, exist_ok=True)
+
 # Perform the installation
 with Installer(
     mountpoint,
@@ -129,9 +133,22 @@ with Installer(
     kernels=['linux'],
 ) as installation:
     # Mount the filesystem layout
-    # The mount_ordered_layout() function will automatically create parent
-    # directories like /mnt/boot as needed.
     installation.mount_ordered_layout()
+
+    # Ensure /boot directory exists in the root filesystem
+    boot_dir = mountpoint / 'boot'
+    boot_dir.mkdir(parents=True, exist_ok=True)
+
+    # <-- Added this check to ensure the ESP is mounted
+    efi_mount = mountpoint / 'boot' / 'efi'
+    if not efi_mount.exists():
+        raise RuntimeError("EFI mountpoint /mnt/boot/efi does not exist")
+
+    # <-- Manually mount ESP if not automatically mounted
+    efi_partition = next((p for p in device_modification.partitions if p.mountpoint == Path('/boot/efi')), None)
+    if efi_partition:
+        efi_device_path = efi_partition.path or fs_handler.resolve_partition_path(efi_partition)
+        subprocess.run(['mount', '-t', 'vfat', efi_device_path, str(efi_mount)], check=True)
 
     # Perform minimal installation with specified hostname
     installation.minimal_installation(hostname=hostname)
@@ -139,9 +156,8 @@ with Installer(
     # Add additional packages
     installation.add_additional_packages(['grub', 'networkmanager', 'openssh', 'git'])
 
-    # Install GRUB bootloader for a UEFI system.
-    # The device path is omitted as archinstall auto-detects the ESP.
-    installation.add_bootloader(Bootloader.Grub)
+    # Install GRUB bootloader
+    installation.add_bootloader(Bootloader.Grub, device.device_info.path)
 
     # Install minimal profile
     profile_config = ProfileConfiguration(MinimalProfile())
