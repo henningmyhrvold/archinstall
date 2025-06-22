@@ -1,9 +1,9 @@
+import os
 from pathlib import Path
 from getpass import getpass
 import subprocess
 import shutil
 import time
-import os
 
 from archinstall.default_profiles.minimal import MinimalProfile
 from archinstall.lib.disk.device_handler import device_handler
@@ -27,8 +27,8 @@ from archinstall.lib.models.users import Password, User
 from archinstall.lib.profile.profiles_handler import profile_handler
 
 # Check for UEFI mode
-#if not os.path.exists('/sys/firmware/efi'):
-#    raise SystemExit("Error: This script requires a UEFI system. BIOS systems are not supported.")
+if not os.path.exists('/sys/firmware/efi'):
+    raise SystemExit("Error: This script requires a UEFI system. BIOS systems are not supported.")
 
 # Custom input function to provide default values
 def input_with_default(prompt, default):
@@ -81,7 +81,7 @@ fs_type = FilesystemType('ext4')
 # Get total disk size as a Size object
 total_disk_size = device.device_info.total_size
 
-# Create boot partition (FAT32, 512 MiB)
+# Create EFI System Partition (FAT32, 512 MiB, mounted at /boot/efi)
 boot_start = Size(1, Unit.MiB, device.device_info.sector_size)
 boot_length = Size(512, Unit.MiB, device.device_info.sector_size)
 boot_partition = PartitionModification(
@@ -89,7 +89,7 @@ boot_partition = PartitionModification(
     type=PartitionType.Primary,
     start=boot_start,
     length=boot_length,
-    mountpoint=Path('/boot'),
+    mountpoint=Path('/boot/efi'),
     fs_type=FilesystemType.Fat32,
     flags=[PartitionFlag.BOOT],
 )
