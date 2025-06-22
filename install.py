@@ -1,7 +1,9 @@
 import os
 from pathlib import Path
 from getpass import getpass
+import subprocess
 import shutil
+import time
 
 from archinstall.default_profiles.minimal import MinimalProfile
 from archinstall.lib.disk.device_handler import device_handler
@@ -159,26 +161,46 @@ with Installer(
     # Set timezone
     installation.set_timezone('Europe/Oslo')
 
-    # Copy configuration files if they exist
+    # Copy configuration files
     config_source = Path('/tmp/archinstall')
-    if config_source.exists():
-        config_target = mountpoint / 'opt' / 'archinstall'
-        config_target.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(str(config_source), str(config_target), dirs_exist_ok=True)
-        
-        # Make the post-install script executable within the new system
-        post_install_script_path = config_target / 'post_install.sh'
-        if post_install_script_path.exists():
-            installation.arch_chroot(f'chmod +x /opt/archinstall/post_install.sh')
+    config_target = mountpoint / 'opt' / 'archinstall'
+    config_target.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(str(config_source), str(config_target), dirs_exist_ok=True)
+    
+    # Make the post-install script executable within the new system
+    installation.arch_chroot('chmod +x /opt/archinstall/post_install.sh')
 
-            # Run the post-install script using the integrated arch-chroot function
-            print("\n--- Running post-install script ---")
-            cmd_result = installation.arch_chroot(f'/opt/archinstall/post_install.sh {sudo_user}', tty=True)
-            
-            if cmd_result.return_code == 0:
-                print("\n--- Post-install script completed successfully ---")
-            else:
-                print(f"\n--- Post-install script failed with exit code {cmd_result.return_code} ---")
-                print("Please check the output above for errors.")
+# Run the post-install script using subprocess to stream its output
+print("\n--- Running post-install script ---")
+command = [
+    'arch-chroot',
+    str(mountpoint),
+    '/opt/archinstall/post_install.sh',
+    sudo_user
+]
 
-print("\nInstallation complete. You can now reboot.")
+try:
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        universal_newlines=True
+    )
+
+    if process.stdout:
+        for line in iter(process.stdout.readline, ''):
+            print(line, end='')
+
+    process.wait()
+
+    if process.returncode == 0:
+        print("\n--- Post-install script completed successfully ---")
+        print("\nInstallation complete. You can now reboot.")
+    else:
+        print(f"\n--- Post-install script failed with exit code {process.returncode} ---")
+        print("Please check the output above for errors.")
+
+except Exception as e:
+    print(f"\nAn unexpected error occurred: {e}")
