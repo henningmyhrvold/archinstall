@@ -3,6 +3,7 @@ from getpass import getpass
 import subprocess
 import shutil
 import time
+import os
 
 from archinstall.default_profiles.minimal import MinimalProfile
 from archinstall.lib.disk.device_handler import device_handler
