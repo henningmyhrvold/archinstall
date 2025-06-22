@@ -42,7 +42,7 @@ pacman -Sy --noconfirm
 
 # --- Install Packages ---
 print_update "Installing packages from pacman_packages.txt..."
-pacman -S --noconfirm --needed - < "$CONFIG_DIR/pacman_packages.txt"
+grep -v '^#\|^$' "$CONFIG_DIR/pacman_packages.txt" | pacman -S --noconfirm --needed -
 
 # --- Create Source Directory ---
 print_update "Creating source directory at $SRC_DIR..."

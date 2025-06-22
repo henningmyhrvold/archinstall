@@ -1,14 +1,15 @@
 # --- Core Dependencies ---
 # Absolutely essential for the Ansible workflow
-ansibles
+ansible
 
-# --- The Bare Minimum for a Graphical Session ---
+# --- Graphical Session ---
 # The Wayland compositor and its foundation
-hyprland
 wayland
+hyprland
 libinput
-# A single, lightweight Wayland terminal.
-foot
+
+# A Terminal.
+wezterm
 
 # --- Graphics Drivers ---
 # Universal open-source drivers for Intel and AMD
@@ -19,7 +20,6 @@ mesa
 # nvidia-utils
 
 # --- Foundational System Services ---
-# Handles authentication prompts in Wayland
 polkit-kde-agent
 refind
 reflector
