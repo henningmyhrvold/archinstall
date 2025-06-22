@@ -21,7 +21,6 @@ mesa
 
 # --- Foundational System Services ---
 polkit-kde-agent
-refind
 reflector
 
 # Basic font support to make the terminal readable

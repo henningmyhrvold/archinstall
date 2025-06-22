@@ -20,9 +20,14 @@ from archinstall.lib.models.device_model import (
     Size,
     Unit,
 )
+from archinstall.lib.models import Bootloader
 from archinstall.lib.models.profile_model import ProfileConfiguration
 from archinstall.lib.models.users import Password, User
 from archinstall.lib.profile.profiles_handler import profile_handler
+
+# Check for UEFI mode
+if not os.path.exists('/sys/firmware/efi'):
+    raise SystemExit("Error: This script requires a UEFI system. BIOS systems are not supported.")
 
 # Custom input function to provide default values
 def input_with_default(prompt, default):
@@ -129,7 +134,10 @@ with Installer(
     installation.minimal_installation(hostname=hostname)
 
     # Add additional packages
-    installation.add_additional_packages(['networkmanager', 'openssh', 'git'])
+    installation.add_additional_packages(['grub', 'networkmanager', 'openssh', 'git'])
+
+    # Install GRUB bootloader
+    installation.add_bootloader(Bootloader.Grub, device.device_info.path)
 
     # Install minimal profile
     profile_config = ProfileConfiguration(MinimalProfile())
@@ -153,13 +161,12 @@ with Installer(
     config_source = Path('/tmp/archinstall')
     config_target = mountpoint / 'opt' / 'archinstall'
     config_target.mkdir(parents=True, exist_ok=True)
-    # Use dirs_exist_ok for compatibility with Python > 3.8
     shutil.copytree(str(config_source), str(config_target), dirs_exist_ok=True)
     
     # Make the post-install script executable within the new system
     installation.arch_chroot('chmod +x /opt/archinstall/post_install.sh')
 
-# Now, run the post-install script using subprocess to stream its output
+# Run the post-install script using subprocess to stream its output
 print("\n--- Running post-install script ---")
 command = [
     'arch-chroot',
@@ -169,22 +176,19 @@ command = [
 ]
 
 try:
-    # Use subprocess.Popen to execute the command and capture its output
     process = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, # Redirect stderr to stdout to see errors
-        text=True, # Decode output as text using default encoding
-        bufsize=1, # Use line-buffering
-        universal_newlines=True # Handle newlines consistently
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        universal_newlines=True
     )
 
-    # Read and print output line-by-line in real-time
     if process.stdout:
         for line in iter(process.stdout.readline, ''):
-            print(line, end='') # Print the line as it's received
+            print(line, end='')
 
-    # Wait for the process to complete
     process.wait()
 
     if process.returncode == 0:
