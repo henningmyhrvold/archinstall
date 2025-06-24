@@ -89,9 +89,9 @@ boot_partition = PartitionModification(
     type=PartitionType.Primary,
     start=boot_start,
     length=boot_length,
-    mountpoint=Path('/boot/efi'),
+    mountpoint=Path('/boot'),
     fs_type=FilesystemType.Fat32,
-    flags=[PartitionFlag.BOOT],
+    flags=[PartitionFlag.ESP],
 )
 device_modification.add_partition(boot_partition)
 
