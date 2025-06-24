@@ -89,7 +89,7 @@ boot_partition = PartitionModification(
     type=PartitionType.Primary,
     start=boot_start,
     length=boot_length,
-    mountpoint=Path('/boot'),
+    mountpoint=Path('/boot/efi'),
     fs_type=FilesystemType.Fat32,
     flags=[PartitionFlag.BOOT],
 )
