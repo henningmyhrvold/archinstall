@@ -11,8 +11,10 @@ from archinstall.lib.disk.filesystem import FilesystemHandler
 from archinstall.lib.installer import Installer
 from archinstall.lib.models.device_model import (
     DeviceModification,
+    DiskEncryption,
     DiskLayoutConfiguration,
     DiskLayoutType,
+    EncryptionType,
     FilesystemType,
     ModificationStatus,
     PartitionFlag,
