@@ -153,7 +153,7 @@ with Installer(
     installation.minimal_installation(hostname=hostname)
 
     # Add additional packages
-    installation.add_additional_packages(['grub', 'networkmanager', 'openssh', 'git'])
+    installation.add_additional_packages(['grub', 'networkmanager', 'openssh', 'git','iwd')
 
     # Install GRUB bootloader for a UEFI system.
     # The device path is omitted as archinstall auto-detects the ESP.
