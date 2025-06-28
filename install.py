@@ -1,3 +1,7 @@
+# chmod bootstrap
+#
+# wireless networking
+#
 import os
 from pathlib import Path
 from getpass import getpass
@@ -168,7 +172,7 @@ with Installer(
     installation.set_user_password(root_user)
 
     # Enable services
-    installation.enable_service(['NetworkManager.service', 'sshd.service'])
+    installation.enable_service(['NetworkManager.service', 'sshd.service', 'iwd.service'])
 
     # Set timezone
     installation.set_timezone('Europe/Oslo')

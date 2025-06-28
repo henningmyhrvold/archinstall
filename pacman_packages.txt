@@ -22,6 +22,7 @@ mesa
 # --- Foundational System Services ---
 polkit-kde-agent
 reflector
+iwd
 
 # Basic font support to make the terminal readable
 noto-fonts
