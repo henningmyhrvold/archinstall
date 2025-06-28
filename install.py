@@ -157,7 +157,7 @@ with Installer(
 
     # Install GRUB bootloader for a UEFI system.
     # The device path is omitted as archinstall auto-detects the ESP.
-    installation.add_bootloader(Bootloader.Grub, bootloader_id='Arch')
+    installation.add_bootloader(Bootloader.Grub)
 
     # Install minimal profile
     profile_config = ProfileConfiguration(MinimalProfile())

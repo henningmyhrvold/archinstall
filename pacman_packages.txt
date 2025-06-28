@@ -23,6 +23,7 @@ mesa
 polkit-kde-agent
 reflector
 iwd
+network-manager-applet
 
 # Basic font support to make the terminal readable
 noto-fonts

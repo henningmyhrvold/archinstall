@@ -35,24 +35,32 @@ DOTFILES_DIR="$SRC_DIR/dotfiles-playbook"
 
 
 # --- Pacman Configuration ---
-print_update "Configuring pacman..."
-sed -i '/^#Color/s/^#//' /etc/pacman.conf
-sed -i '/^#ParallelDownloads/s/^#//' /etc/pacman.conf
-pacman -Sy --noconfirm
+[cite_start]print_update "Configuring pacman..." [cite: 1]
+[cite_start]sed -i '/^#Color/s/^#//' /etc/pacman.conf [cite: 1]
+[cite_start]sed -i '/^#ParallelDownloads/s/^#//' /etc/pacman.conf [cite: 1]
+[cite_start]pacman -Sy --noconfirm [cite: 1]
 
 # --- Install Packages ---
-print_update "Installing packages from pacman_packages.txt..."
-grep -v '^#\|^$' "$CONFIG_DIR/pacman_packages.txt" | pacman -S --noconfirm --needed -
+[cite_start]print_update "Installing packages from pacman_packages.txt..." [cite: 1]
+[cite_start]grep -v '^#\|^$' "$CONFIG_DIR/pacman_packages.txt" | pacman -S --noconfirm --needed - [cite: 1]
+
+# --- Configure NetworkManager to use iwd ---
+print_update "Configuring NetworkManager to use iwd backend..."
+mkdir -p /etc/NetworkManager/conf.d
+cat <<EOF > /etc/NetworkManager/conf.d/wifi_backend.conf
+[device]
+wifi.backend=iwd
+EOF
 
 # --- Create Source Directory ---
-print_update "Creating source directory at $SRC_DIR..."
+[cite_start]print_update "Creating source directory at $SRC_DIR..." [cite: 1]
 # Run mkdir as the new user to ensure correct permissions
-sudo -u "$USERNAME" mkdir -p "$SRC_DIR"
+[cite_start]sudo -u "$USERNAME" mkdir -p "$SRC_DIR" [cite: 1]
 
 # --- Clone Ansible Repository ---
-print_update "Cloning Ansible playbook into $DOTFILES_DIR..."
+[cite_start]print_update "Cloning Ansible playbook into $DOTFILES_DIR..." [cite: 1]
 # Run git clone as the new user
-sudo -u "$USERNAME" git clone "$ANSIBLE_REPO_URL" "$DOTFILES_DIR"
+[cite_start]sudo -u "$USERNAME" git clone "$ANSIBLE_REPO_URL" "$DOTFILES_DIR" [cite: 1]
 
 if [ $? -ne 0 ]; then
     tput setaf 1
@@ -60,14 +68,14 @@ if [ $? -ne 0 ]; then
     tput sgr0
 else
     # This chown is technically redundant because of `sudo -u`, but it's a harmless safety check.
-    chown -R "$USERNAME":"$USERNAME" "$DOTFILES_DIR"
-    print_update "Ansible repository cloned to $DOTFILES_DIR"
+    [cite_start]chown -R "$USERNAME":"$USERNAME" "$DOTFILES_DIR" [cite: 1]
+    [cite_start]print_update "Ansible repository cloned to $DOTFILES_DIR" [cite: 1]
 fi
 
 
 # --- Final Message ---
 echo
-print_update "Installation is complete!"
-echo "You can now reboot the system."
-echo "After rebooting, log in, start Hyprland, and your Ansible playbook will be ready in '$DOTFILES_DIR'."
+[cite_start]print_update "Installation is complete!" [cite: 1]
+[cite_start]echo "You can now reboot the system." [cite: 1]
+[cite_start]echo "After rebooting, log in, start Hyprland, and your Ansible playbook will be ready in '$DOTFILES_DIR'." [cite: 1]
 echo
