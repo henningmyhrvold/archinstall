@@ -69,6 +69,7 @@ if [ $? -ne 0 ]; then
 else
     # This chown is technically redundant because of `sudo -u`, but it's a harmless safety check.
     chown -R "$USERNAME":"$USERNAME" "$DOTFILES_DIR"
+    chmod +x "$DOTFILES_DIR/bootstrap.sh"
     print_update "Ansible repository cloned to $DOTFILES_DIR"
 fi
 
