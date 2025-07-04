@@ -1,13 +1,3 @@
-# --- Core Dependencies ---
-vim
-ansible
-wezterm
-
-# --- Graphical Session ---
-wayland
-hyprland
-libinput
-
 # --- Graphics Drivers ---
 mesa
 # For NVIDIA users, uncomment the following lines.
@@ -20,6 +10,16 @@ polkit-kde-agent
 reflector
 iwd
 network-manager-applet
+
+# --- Core Dependencies ---
+vim
+ansible
+wezterm
+
+# --- Graphical Session ---
+wayland
+hyprland
+libinput
 
 # --- Font Support --- 
 noto-fonts
