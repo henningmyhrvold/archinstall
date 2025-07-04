@@ -176,6 +176,23 @@ with Installer(
 
     # Set timezone
     installation.set_timezone('Europe/Oslo')
+    
+    #----------------------------------------------------------
+    # Changes
+    installation.setup_swap("zram")
+    
+    # Create a swap file inside the encrypted root filesystem
+    # This provides swap space for memory-intensive tasks and is encrypted along with the root partition
+    print("Creating swap file...")
+    SWAP_SIZE = "8G"
+    installation.arch_chroot(f'fallocate -l {SWAP_SIZE} /swapfile')
+    installation.arch_chroot('chmod 600 /swapfile')
+    installation.arch_chroot('mkswap /swapfile')
+    
+    # Set swap file priority to 5 to ensure it is used after zram
+    installation.arch_chroot('echo "/swapfile none swap pri=5 0 0" >> /etc/fstab')
+    # Changes
+    #----------------------------------------------------------
 
     # Copy configuration files
     config_source = Path('/tmp/archinstall')
