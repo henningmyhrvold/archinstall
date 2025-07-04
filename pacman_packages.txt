@@ -1,18 +1,14 @@
 # --- Core Dependencies ---
-# Absolutely essential for the Ansible workflow
+vim
 ansible
+wezterm
 
 # --- Graphical Session ---
-# The Wayland compositor and its foundation
 wayland
 hyprland
 libinput
 
-# A Terminal.
-wezterm
-
 # --- Graphics Drivers ---
-# Universal open-source drivers for Intel and AMD
 mesa
 # For NVIDIA users, uncomment the following lines.
 # You will also need to add kernel parameters.
@@ -25,5 +21,5 @@ reflector
 iwd
 network-manager-applet
 
-# Basic font support to make the terminal readable
+# --- Font Support --- 
 noto-fonts
