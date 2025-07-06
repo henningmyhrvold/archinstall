@@ -6,20 +6,10 @@ mesa
 # nvidia-utils
 
 # --- Foundational System Services ---
-polkit-kde-agent
 reflector
-iwd
-network-manager-applet
 
 # --- Core Dependencies ---
 vim
 ansible
 wezterm
-
-# --- Graphical Session ---
-wayland
-hyprland
-libinput
-
-# --- Font Support --- 
-noto-fonts
+git

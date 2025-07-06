@@ -90,7 +90,7 @@ total_disk_size = device.device_info.total_size
 
 # Create EFI System Partition (FAT32, 512 MiB, mounted at /boot)
 boot_start = Size(1, Unit.MiB, device.device_info.sector_size)
-boot_length = Size(512, Unit.MiB, device.device_info.sector_size)
+boot_length = Size(1024, Unit.MiB, device.device_info.sector_size)
 boot_partition = PartitionModification(
     status=ModificationStatus.Create,
     type=PartitionType.Primary,
@@ -153,7 +153,7 @@ with Installer(
     installation.minimal_installation(hostname=hostname)
 
     # Add additional packages
-    installation.add_additional_packages(['grub', 'networkmanager', 'openssh', 'git','iwd'])
+    installation.add_additional_packages(['grub', 'networkmanager', 'openssh','iwd'])
 
     # Install GRUB bootloader for a UEFI system.
     # The device path is omitted as archinstall auto-detects the ESP.
