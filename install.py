@@ -88,7 +88,7 @@ fs_type = FilesystemType('ext4')
 # Get total disk size as a Size object
 total_disk_size = device.device_info.total_size
 
-# Create EFI System Partition (FAT32, 512 MiB, mounted at /boot)
+# Create EFI System Partition (FAT32, 1024 MiB, mounted at /boot)
 boot_start = Size(1, Unit.MiB, device.device_info.sector_size)
 boot_length = Size(1024, Unit.MiB, device.device_info.sector_size)
 boot_partition = PartitionModification(
@@ -135,6 +135,9 @@ disk_config.disk_encryption = disk_encryption
 fs_handler = FilesystemHandler(disk_config)
 fs_handler.perform_filesystem_operations(show_countdown=False)
 
+# Get UUID of the encrypted root partition
+encrypted_uuid = subprocess.check_output(['blkid', '-s', 'UUID', '-o', 'value', root_partition.dev_path]).decode().strip()
+
 # Define mountpoint
 mountpoint = Path('/mnt')
 
@@ -152,12 +155,54 @@ with Installer(
     # Perform minimal installation with specified hostname
     installation.minimal_installation(hostname=hostname)
 
-    # Add additional packages
-    installation.add_additional_packages(['grub', 'networkmanager', 'openssh','iwd'])
+    # Configure kernel cmdline for encryption
+    cmdline_path = mountpoint / 'etc' / 'kernel' / 'cmdline'
+    cmdline_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(cmdline_path, 'w') as f:
+        f.write(f'cryptdevice=UUID={encrypted_uuid}:cryptroot root=/dev/mapper/cryptroot rw quiet\n')
 
-    # Install GRUB bootloader for a UEFI system.
-    # The device path is omitted as archinstall auto-detects the ESP.
-    installation.add_bootloader(Bootloader.Grub)
+    # Configure mkinitcpio preset for UKI
+    preset_dir = mountpoint / 'etc' / 'mkinitcpio.d'
+    preset_dir.mkdir(parents=True, exist_ok=True)
+    preset_path = preset_dir / 'linux.preset'
+    with open(preset_path, 'w') as f:
+        f.write('''
+# mkinitcpio preset file for the 'linux' package
+
+ALL_config="/etc/mkinitcpio.conf"
+ALL_kver="/boot/vmlinuz-linux"
+
+PRESETS=('default' 'fallback')
+
+default_uki="/boot/EFI/Linux/arch-linux.efi"
+default_options="--splash /usr/share/systemd/bootctl/splash-arch.bmp"
+
+fallback_uki="/boot/EFI/Linux/arch-linux-fallback.efi"
+fallback_options="-S autodetect"
+''')
+
+    # Add additional packages
+    installation.add_additional_packages(['systemd-ukify', 'networkmanager', 'openssh', 'iwd'])
+
+    # Install systemd-boot bootloader for a UEFI system
+    installation.add_bootloader(Bootloader.Systemd)
+
+    # Create EFI/Linux directory for UKIs
+    efi_linux_dir = mountpoint / 'boot' / 'EFI' / 'Linux'
+    efi_linux_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate UKIs
+    installation.arch_chroot('mkinitcpio -P')
+
+    # Configure loader.conf
+    loader_conf = mountpoint / 'boot' / 'loader' / 'loader.conf'
+    with open(loader_conf, 'w') as f:
+        f.write('''
+default arch-linux*.efi
+timeout 4
+console-mode max
+editor no
+''')
 
     # Install minimal profile
     profile_config = ProfileConfiguration(MinimalProfile())

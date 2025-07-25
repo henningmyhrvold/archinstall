@@ -11,5 +11,7 @@ reflector
 # --- Core Dependencies ---
 vim
 ansible
-wezterm
 git
+polkit-kde-agent
+noto-fonts
+libinput
