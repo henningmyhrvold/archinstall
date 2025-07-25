@@ -8,6 +8,7 @@ from getpass import getpass
 import subprocess
 import shutil
 import time
+import re
 
 from archinstall.default_profiles.minimal import MinimalProfile
 from archinstall.lib.disk.device_handler import device_handler
@@ -141,6 +142,16 @@ encrypted_uuid = subprocess.check_output(['blkid', '-s', 'UUID', '-o', 'value', 
 # Define mountpoint
 mountpoint = Path('/mnt')
 
+# Detect GPU driver for early KMS
+lspci_output = subprocess.check_output(['lspci']).decode().lower()
+driver = None
+if 'intel' in lspci_output and 'vga' in lspci_output:
+    driver = 'i915'
+elif ('amd' in lspci_output or 'ati' in lspci_output) and 'vga' in lspci_output:
+    driver = 'amdgpu'
+elif 'nvidia' in lspci_output and 'vga' in lspci_output:
+    driver = 'nouveau'
+
 # Perform the installation
 with Installer(
     mountpoint,
@@ -159,7 +170,7 @@ with Installer(
     cmdline_path = mountpoint / 'etc' / 'kernel' / 'cmdline'
     cmdline_path.parent.mkdir(parents=True, exist_ok=True)
     with open(cmdline_path, 'w') as f:
-        f.write(f'cryptdevice=UUID={encrypted_uuid}:cryptroot root=/dev/mapper/cryptroot rw quiet splash\n')
+        f.write(f'cryptdevice=UUID={encrypted_uuid}:cryptroot root=/dev/mapper/cryptroot rw quiet splash loglevel=3 rd.udev.log_priority=3 vt.global_cursor_default=0 plymouth.use-simpledrm\n')
 
     # Configure mkinitcpio preset for UKI
     preset_dir = mountpoint / 'etc' / 'mkinitcpio.d'
@@ -175,7 +186,7 @@ ALL_kver="/boot/vmlinuz-linux"
 PRESETS=('default' 'fallback')
 
 default_uki="/boot/EFI/Linux/arch-linux.efi"
-default_options="--splash /usr/share/systemd/bootctl/splash-arch.bmp"
+default_options=""
 
 fallback_uki="/boot/EFI/Linux/arch-linux-fallback.efi"
 fallback_options="-S autodetect"
@@ -195,6 +206,8 @@ fallback_options="-S autodetect"
     mkinitcpio_conf = mountpoint / 'etc' / 'mkinitcpio.conf'
     with open(mkinitcpio_conf, 'a') as f:
         f.write('\nHOOKS=(base udev autodetect modconf kms plymouth block encrypt filesystems keyboard fsck)\n')
+        if driver:
+            f.write(f'MODULES=({driver})\n')
 
     # Set Plymouth default theme
     installation.arch_chroot('plymouth-set-default-theme -R spinner')
@@ -213,7 +226,7 @@ fallback_options="-S autodetect"
     with open(loader_conf, 'w') as f:
         f.write('''
 default arch-linux*.efi
-timeout 4
+timeout 2
 console-mode max
 editor no
 ''')
