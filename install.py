@@ -194,7 +194,7 @@ fallback_options="-S autodetect"
     # Configure mkinitcpio hooks for Plymouth
     mkinitcpio_conf = mountpoint / 'etc' / 'mkinitcpio.conf'
     with open(mkinitcpio_conf, 'a') as f:
-        f.write('\nHOOKS=(base udev autodetect modconf kms plymouth block plymouth-encrypt filesystems keyboard fsck)\n')
+        f.write('\nHOOKS=(base udev autodetect modconf kms plymouth block encrypt filesystems keyboard fsck)\n')
 
     # Set Plymouth default theme
     installation.arch_chroot('plymouth-set-default-theme -R spinner')
@@ -213,7 +213,7 @@ fallback_options="-S autodetect"
     with open(loader_conf, 'w') as f:
         f.write('''
 default arch-linux*.efi
-timeout 2
+timeout 4
 console-mode max
 editor no
 ''')
