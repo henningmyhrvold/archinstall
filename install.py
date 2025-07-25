@@ -1,7 +1,3 @@
-# chmod bootstrap
-#
-# wireless networking
-#
 import os
 from pathlib import Path
 from getpass import getpass
@@ -32,6 +28,10 @@ from archinstall.lib.models import Bootloader
 from archinstall.lib.models.profile_model import ProfileConfiguration
 from archinstall.lib.models.users import Password, User
 from archinstall.lib.profile.profiles_handler import profile_handler
+
+# Define local mirror addresses (manually set these before running the script)
+PACMAN_MIRROR = "192.168.1.100"
+AUR_MIRROR = "192.168.1.100"
 
 # Check for UEFI mode
 if not os.path.exists('/sys/firmware/efi'):
@@ -76,6 +76,7 @@ device = selected_device
 # Prompt user for installation inputs with defaults
 hostname = input_with_default("Enter hostname", "arch")
 sudo_user = input_with_default("Enter sudo user username", "hm")
+use_local_mirrors = input_with_default("Use local offline mirrors for pacman and AUR?", "No").lower().startswith('y')
 sudo_password = getpass("Enter sudo user password: ")
 root_password = getpass("Enter root password: ")
 encryption_password = getpass("Enter disk encryption password: ")
@@ -163,8 +164,44 @@ with Installer(
     # directories like /mnt/boot as needed.
     installation.mount_ordered_layout()
 
+    # Configure local mirrors for pacman if selected
+    if use_local_mirrors:
+        pacman_conf = mountpoint / 'etc' / 'pacman.conf'
+        with open(pacman_conf, 'w') as f:
+            f.write(f'''
+[options]
+HoldPkg     = pacman glibc
+Architecture = auto
+CheckSpace
+SigLevel    = Required DatabaseOptional
+LocalFileSigLevel = Optional
+
+[core]
+Server = http://{PACMAN_MIRROR}/$repo/os/$arch
+
+[extra]
+Server = http://{PACMAN_MIRROR}/$repo/os/$arch
+
+[community]
+Server = http://{PACMAN_MIRROR}/$repo/os/$arch
+''')
+
     # Perform minimal installation with specified hostname
     installation.minimal_installation(hostname=hostname)
+
+    # Configure local mirrors for paru if selected
+    if use_local_mirrors:
+        paru_conf = mountpoint / 'etc' / 'paru.conf'
+        with open(paru_conf, 'w') as f:
+            f.write(f'''
+[options]
+PacmanConf = /etc/pacman.conf
+AURonly
+SkipReview
+
+[bin]
+Server = http://{AUR_MIRROR}/aur
+''')
 
     # Configure kernel cmdline for encryption
     cmdline_path = mountpoint / 'etc' / 'kernel' / 'cmdline'
