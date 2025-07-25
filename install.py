@@ -159,7 +159,7 @@ with Installer(
     cmdline_path = mountpoint / 'etc' / 'kernel' / 'cmdline'
     cmdline_path.parent.mkdir(parents=True, exist_ok=True)
     with open(cmdline_path, 'w') as f:
-        f.write(f'cryptdevice=UUID={encrypted_uuid}:cryptroot root=/dev/mapper/cryptroot rw quiet\n')
+        f.write(f'cryptdevice=UUID={encrypted_uuid}:cryptroot root=/dev/mapper/cryptroot rw quiet splash\n')
 
     # Configure mkinitcpio preset for UKI
     preset_dir = mountpoint / 'etc' / 'mkinitcpio.d'
@@ -182,7 +182,7 @@ fallback_options="-S autodetect"
 ''')
 
     # Add additional packages
-    installation.add_additional_packages(['systemd-ukify', 'networkmanager', 'openssh', 'iwd'])
+    installation.add_additional_packages(['systemd-ukify', 'networkmanager', 'openssh', 'iwd', 'plymouth'])
 
     # Install systemd-boot bootloader for a UEFI system
     installation.add_bootloader(Bootloader.Systemd)
@@ -190,6 +190,20 @@ fallback_options="-S autodetect"
     # Create EFI/Linux directory for UKIs
     efi_linux_dir = mountpoint / 'boot' / 'EFI' / 'Linux'
     efi_linux_dir.mkdir(parents=True, exist_ok=True)
+
+    # Configure mkinitcpio hooks for Plymouth
+    mkinitcpio_conf = mountpoint / 'etc' / 'mkinitcpio.conf'
+    with open(mkinitcpio_conf, 'a') as f:
+        f.write('\nHOOKS=(base udev autodetect modconf kms plymouth block plymouth-encrypt filesystems keyboard fsck)\n')
+
+    # Set Plymouth default theme
+    installation.arch_chroot('plymouth-set-default-theme -R spinner')
+
+    # Configure Plymouth daemon
+    plymouthd_conf = mountpoint / 'etc' / 'plymouth' / 'plymouthd.conf'
+    plymouthd_conf.parent.mkdir(parents=True, exist_ok=True)
+    with open(plymouthd_conf, 'w') as f:
+        f.write('[Daemon]\nTheme=spinner\nShowDelay=0\n')
 
     # Generate UKIs
     installation.arch_chroot('mkinitcpio -P')
@@ -199,7 +213,7 @@ fallback_options="-S autodetect"
     with open(loader_conf, 'w') as f:
         f.write('''
 default arch-linux*.efi
-timeout 4
+timeout 2
 console-mode max
 editor no
 ''')
