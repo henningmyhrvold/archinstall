@@ -286,8 +286,6 @@ editor no
     # Set timezone
     installation.set_timezone('Europe/Oslo')
     
-    #----------------------------------------------------------
-    # Changes
     installation.setup_swap("zram")
     
     # Create a swap file inside the encrypted root filesystem
@@ -300,8 +298,6 @@ editor no
     
     # Set swap file priority to 5 to ensure it is used after zram
     installation.arch_chroot('echo "/swapfile none swap pri=5 0 0" >> /etc/fstab')
-    # Changes
-    #----------------------------------------------------------
 
     # Copy configuration files
     config_source = Path('/tmp/archinstall')
@@ -317,15 +313,32 @@ print("\n--- Customizing EFI boot entry ---")
 efiboot_output = subprocess.check_output(['efibootmgr', '-v']).decode()
 lines = efiboot_output.splitlines()
 
-# Rename NVMe-related entry to Arch Linux
-for line in lines:
-    if 'NVMe' in line:
-        match = re.match(r'Boot([0-9A-F]{4})', line)
-        if match:
-            boot_num = match.group(1)
-            subprocess.call(['efibootmgr', '-b', boot_num, '-L', 'Arch Linux'])
-            print(f"Renamed boot entry {boot_num} containing 'NVMe' to Arch Linux")
-            break
+# Create a new EFI boot entry for Arch Linux
+disk = device.device_info.path  # e.g., /dev/nvme0n1
+part_match = re.search(r'p(\d+)$', boot_partition.dev_path)
+if part_match:
+    part = part_match.group(1)
+else:
+    print("Failed to determine EFI partition number")
+    part = '1'  # Fallback assumption
+
+loader_path = r'\EFI\systemd\systemd-bootx64.efi'
+create_cmd = ['efibootmgr', '--create', '--disk', disk, '--part', part, '--label', 'Arch Linux', '--loader', loader_path, '--unicode']
+create_output = subprocess.check_output(create_cmd).decode()
+print(create_output)
+
+# Parse new boot number from creation output
+match = re.search(r'Boot([0-9A-F]{4})', create_output)
+if match:
+    new_boot_num = match.group(1)
+    # Update boot order to set new entry first
+    current_efiboot = subprocess.check_output(['efibootmgr']).decode()
+    order_match = re.search(r'BootOrder: ([\w,]+)', current_efiboot)
+    if order_match:
+        order = order_match.group(1).split(',')
+        new_order = [new_boot_num] + [n for n in order if n != new_boot_num]
+        subprocess.call(['efibootmgr', '--bootorder', ','.join(new_order)])
+        print(f"Set boot entry {new_boot_num} as default")
 
 # Remove old Ubuntu entries, uncomment and rename if you want to clean up old boot entries in the UEFI boot meny.
 #ubuntu_nums = []
