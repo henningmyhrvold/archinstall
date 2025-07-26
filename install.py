@@ -308,32 +308,11 @@ editor no
     # Make the post-install script executable within the new system
     installation.arch_chroot('chmod +x /opt/archinstall/post_install.sh')
 
-# Customize EFI boot entry
-print("\n--- Customizing EFI boot entry ---")
-efiboot_output = subprocess.check_output(['efibootmgr', '-v']).decode()
-lines = efiboot_output.splitlines()
-
-# Rename NVMe-related entry to Arch Linux
-nvme_renamed = False
-for i, line in enumerate(lines):
-    if 'NVMe' in line.lower():  # Case-insensitive match
-        # Look for BootXXXX in the current or previous line
-        current_line = line
-        for j in range(i, max(-1, i-1), -1):
-            match = re.search(r'Boot([0-9A-F]{4})', lines[j])
-            if match:
-                boot_num = match.group(1)
-                result = subprocess.call(['efibootmgr', '-b', boot_num, '-L', 'Arch Linux'])
-                if result == 0:
-                    print(f"Successfully renamed boot entry {boot_num} containing 'NVMe' to Arch Linux")
-                    nvme_renamed = True
-                else:
-                    print(f"Failed to rename boot entry {boot_num} containing 'NVMe' (exit code {result})")
-                break
-        if nvme_renamed:
-            break  # Stop after first successful rename
-
 # Remove old Ubuntu entries, uncomment and rename if you want to clean up old boot entries in the UEFI boot meny.
+#print("\n--- Customizing EFI boot entry ---")
+#efiboot_output = subprocess.check_output(['efibootmgr', '-v']).decode()
+#lines = efiboot_output.splitlines()
+#
 #ubuntu_nums = []
 #for line in lines:
 #    if 'Ubuntu' in line:
