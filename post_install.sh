@@ -28,10 +28,12 @@ USERNAME=$1
 CONFIG_DIR="/opt/archinstall"
 USER_HOME="/home/$USERNAME"
 ANSIBLE_REPO_URL="https://github.com/henningmyhrvold/dotfiles-playbook.git"
+ARCHINSTALL_REPO_URL="https://github.com/henningmyhrvold/archinstall.git"
 # Define the source directory path
 SRC_DIR="$USER_HOME/src"
 # Define the final destination for the repository, inside the src folder
 DOTFILES_DIR="$SRC_DIR/dotfiles-playbook"
+ARCHINSTALL_DIR="$SRC_DIR/archinstall"
 
 
 # --- Pacman Configuration ---
@@ -61,6 +63,7 @@ sudo -u "$USERNAME" mkdir -p "$SRC_DIR"
 print_update "Cloning Ansible playbook into $DOTFILES_DIR..."
 # Run git clone as the new user
 sudo -u "$USERNAME" git clone "$ANSIBLE_REPO_URL" "$DOTFILES_DIR"
+sudo -u "$USERNAME" git clone "$ARCHINSTALL_REPO_URL" "$ARCHINSTALL_DIR"
 
 if [ $? -ne 0 ]; then
     tput setaf 1
