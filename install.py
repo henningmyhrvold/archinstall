@@ -317,27 +317,27 @@ print("\n--- Customizing EFI boot entry ---")
 efiboot_output = subprocess.check_output(['efibootmgr', '-v']).decode()
 lines = efiboot_output.splitlines()
 
-# Rename Linux Boot Manager to Arch Linux
+# Rename NVMe-related entry to Arch Linux
 for line in lines:
-    if 'Linux Boot Manager' in line:
+    if 'NVMe' in line:
         match = re.match(r'Boot([0-9A-F]{4})', line)
         if match:
             boot_num = match.group(1)
             subprocess.call(['efibootmgr', '-b', boot_num, '-L', 'Arch Linux'])
-            print(f"Renamed boot entry {boot_num} to Arch Linux")
+            print(f"Renamed boot entry {boot_num} containing 'NVMe' to Arch Linux")
             break
 
-# Remove old Ubuntu entries
-ubuntu_nums = []
-for line in lines:
-    if 'Ubuntu' in line:
-        match = re.match(r'Boot([0-9A-F]{4})', line)
-        if match:
-            ubuntu_nums.append(match.group(1))
-
-for boot_num in ubuntu_nums:
-    subprocess.call(['efibootmgr', '--delete-bootnum', '--bootnum', boot_num])
-    print(f"Removed old Ubuntu boot entry {boot_num}")
+# Remove old Ubuntu entries, uncomment and rename if you want to clean up old boot entries in the UEFI boot meny.
+#ubuntu_nums = []
+#for line in lines:
+#    if 'Ubuntu' in line:
+#        match = re.match(r'Boot([0-9A-F]{4})', line)
+#        if match:
+#            ubuntu_nums.append(match.group(1))
+#
+#for boot_num in ubuntu_nums:
+#    subprocess.call(['efibootmgr', '--delete-bootnum', '--bootnum', boot_num])
+#    print(f"Removed old Ubuntu boot entry {boot_num}")
 
 # Run the post-install script using subprocess to stream its output
 print("\n--- Running post-install script ---")
