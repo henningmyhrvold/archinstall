@@ -17,7 +17,7 @@ This script automates the installation of a minimal Arch Linux base system, prep
 4.  **Review and Modify Scripts**
     * `pacman_packages.txt`: Add or remove packages for the base install.
     * `post_install.sh`: This script runs at the end of the installation.
-    * `install.py`: This script requires a disk size greater than 21 GB.
+    * `install.py`: Change default user name "hm" to your own.
 
 5.  **Extended WiFi commands**
     ```bash
@@ -43,9 +43,11 @@ python install.py
 ## Post-Installation
 1. **Start Terminal**
     * Log in 
-    * Type Hyprland
-    * Press Super + Enter to open terminal.
+    * cd src/dotfiles-playbook
+    * ./bootstrap.sh
+    * Wait for the playbook to finish. Reboot.
 2.  **Secure Boot**
+    * Super + Enter for terminal
     ```bash
     enable_secure_boot.sh
     enable_tpm_autounlock.sh
