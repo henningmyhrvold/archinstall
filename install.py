@@ -223,7 +223,7 @@ ALL_kver="/boot/vmlinuz-linux"
 PRESETS=('default' 'fallback')
 
 default_uki="/boot/EFI/Linux/arch-linux.efi"
-default_options=""
+default_options="--splash /usr/share/systemd/bootctl/splash-arch.bmp"
 
 fallback_uki="/boot/EFI/Linux/arch-linux-fallback.efi"
 fallback_options="-S autodetect"
@@ -263,7 +263,7 @@ fallback_options="-S autodetect"
     with open(loader_conf, 'w') as f:
         f.write('''
 default arch-linux*.efi
-timeout 2
+timeout 1
 console-mode max
 editor no
 ''')
