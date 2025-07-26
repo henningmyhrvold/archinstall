@@ -160,6 +160,8 @@ with Installer(
     kernels=['linux'],
 ) as installation:
     # Mount the filesystem layout
+    # The mount_ordered_layout() function will automatically create parent
+    # directories like /mnt/boot as needed.
     installation.mount_ordered_layout()
 
     # Configure local mirrors for pacman if selected
@@ -227,8 +229,8 @@ fallback_uki="/boot/EFI/Linux/arch-linux-fallback.efi"
 fallback_options="-S autodetect"
 ''')
 
-    # Add additional packages, including Plymouth Arch Linux logo theme
-    installation.add_additional_packages(['systemd-ukify', 'networkmanager', 'openssh', 'iwd', 'plymouth', 'plymouth-theme-arch-glow'])
+    # Add additional packages
+    installation.add_additional_packages(['systemd-ukify', 'networkmanager', 'openssh', 'iwd', 'plymouth'])
 
     # Install systemd-boot bootloader for a UEFI system
     installation.add_bootloader(Bootloader.Systemd)
@@ -244,14 +246,14 @@ fallback_options="-S autodetect"
         if driver:
             f.write(f'MODULES=({driver})\n')
 
-    # Set Plymouth default theme to Arch Linux logo
-    installation.arch_chroot('plymouth-set-default-theme -R arch-glow')
+    # Set Plymouth default theme
+    installation.arch_chroot('plymouth-set-default-theme -R spinner')
 
     # Configure Plymouth daemon
     plymouthd_conf = mountpoint / 'etc' / 'plymouth' / 'plymouthd.conf'
     plymouthd_conf.parent.mkdir(parents=True, exist_ok=True)
     with open(plymouthd_conf, 'w') as f:
-        f.write('[Daemon]\nTheme=arch-glow\nShowDelay=0\n')
+        f.write('[Daemon]\nTheme=spinner\nShowDelay=0\n')
 
     # Generate UKIs
     installation.arch_chroot('mkinitcpio -P')
@@ -287,6 +289,7 @@ editor no
     installation.setup_swap("zram")
     
     # Create a swap file inside the encrypted root filesystem
+    # This provides swap space for memory-intensive tasks and is encrypted along with the root partition
     print("Creating swap file...")
     SWAP_SIZE = "8G"
     installation.arch_chroot(f'fallocate -l {SWAP_SIZE} /swapfile')
@@ -305,7 +308,7 @@ editor no
     # Make the post-install script executable within the new system
     installation.arch_chroot('chmod +x /opt/archinstall/post_install.sh')
 
-# Remove old Ubuntu entries, uncomment and rename if you want to clean up old boot entries in the UEFI boot menu.
+# Remove old Ubuntu entries, uncomment and rename if you want to clean up old boot entries in the UEFI boot meny.
 #print("\n--- Customizing EFI boot entry ---")
 #efiboot_output = subprocess.check_output(['efibootmgr', '-v']).decode()
 #lines = efiboot_output.splitlines()

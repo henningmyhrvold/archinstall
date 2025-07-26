@@ -17,7 +17,7 @@ This script automates the installation of a minimal Arch Linux base system, prep
 4.  **Review and Modify Scripts**
     * `pacman_packages.txt`: Add or remove packages for the base install.
     * `post_install.sh`: This script runs at the end of the installation.
-    * `install.py`: Change default user name "hm" to your own.
+    * `install.py`: Change default user name "hm" to your own. If you change the username, change username in the dotfiles and dotfiles-playbook repos.
 
 5.  **Extended WiFi commands**
     ```bash
