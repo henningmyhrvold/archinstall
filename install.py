@@ -313,32 +313,25 @@ print("\n--- Customizing EFI boot entry ---")
 efiboot_output = subprocess.check_output(['efibootmgr', '-v']).decode()
 lines = efiboot_output.splitlines()
 
-# Create a new EFI boot entry for Arch Linux
-disk = device.device_info.path  # e.g., /dev/nvme0n1
-part_match = re.search(r'p(\d+)$', boot_partition.dev_path)
-if part_match:
-    part = part_match.group(1)
-else:
-    print("Failed to determine EFI partition number")
-    part = '1'  # Fallback assumption
-
-loader_path = r'\EFI\systemd\systemd-bootx64.efi'
-create_cmd = ['efibootmgr', '--create', '--disk', disk, '--part', part, '--label', 'Arch Linux', '--loader', loader_path, '--unicode']
-create_output = subprocess.check_output(create_cmd).decode()
-print(create_output)
-
-# Parse new boot number from creation output
-match = re.search(r'Boot([0-9A-F]{4})', create_output)
-if match:
-    new_boot_num = match.group(1)
-    # Update boot order to set new entry first
-    current_efiboot = subprocess.check_output(['efibootmgr']).decode()
-    order_match = re.search(r'BootOrder: ([\w,]+)', current_efiboot)
-    if order_match:
-        order = order_match.group(1).split(',')
-        new_order = [new_boot_num] + [n for n in order if n != new_boot_num]
-        subprocess.call(['efibootmgr', '--bootorder', ','.join(new_order)])
-        print(f"Set boot entry {new_boot_num} as default")
+# Rename NVMe-related entry to Arch Linux
+nvme_renamed = False
+for i, line in enumerate(lines):
+    if 'NVMe' in line.lower():  # Case-insensitive match
+        # Look for BootXXXX in the current or previous line
+        current_line = line
+        for j in range(i, max(-1, i-1), -1):
+            match = re.search(r'Boot([0-9A-F]{4})', lines[j])
+            if match:
+                boot_num = match.group(1)
+                result = subprocess.call(['efibootmgr', '-b', boot_num, '-L', 'Arch Linux'])
+                if result == 0:
+                    print(f"Successfully renamed boot entry {boot_num} containing 'NVMe' to Arch Linux")
+                    nvme_renamed = True
+                else:
+                    print(f"Failed to rename boot entry {boot_num} containing 'NVMe' (exit code {result})")
+                break
+        if nvme_renamed:
+            break  # Stop after first successful rename
 
 # Remove old Ubuntu entries, uncomment and rename if you want to clean up old boot entries in the UEFI boot meny.
 #ubuntu_nums = []
