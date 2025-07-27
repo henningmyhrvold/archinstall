@@ -24,21 +24,31 @@ make_writable() {
 # Install required software
 sudo pacman -S --needed sbctl
 
+# Capture status output once
+status_output=$(sudo sbctl status)
+
 # Create keys if not already installed
-if ! sbctl status | grep -q "Installed"; then
+if ! echo "$status_output" | grep -iq "Installed.*installed"; then
     echo "Creating Secure Boot keys..."
     sudo sbctl create-keys
 fi
 
-# Attempt to enroll keys, make variables writable if necessary, and retry
-echo "Enrolling keys (including Microsoft keys)..."
-if ! sudo sbctl enroll-keys -m; then
-    echo "Initial enrollment failed. Attempting to make EFI variables writable..."
-    make_writable
+# Check Setup Mode and Secure Boot status
+if echo "$status_output" | grep -q "Setup Mode:.*Enabled"; then
+    echo "Enrolling keys (including Microsoft keys)..."
     if ! sudo sbctl enroll-keys -m; then
-        echo "Enrollment failed even after making variables writable. Manual intervention may be required: reboot into your BIOS/UEFI firmware setup (e.g., via 'systemctl reboot --firmware-setup') and set Secure Boot to Setup Mode, then rerun this script."
-        exit 1
+        echo "Initial enrollment failed. Attempting to make EFI variables writable..."
+        make_writable
+        if ! sudo sbctl enroll-keys -m; then
+            echo "Enrollment failed even after making variables writable. Manual intervention may be required: reboot into your BIOS/UEFI firmware setup (e.g., via 'systemctl reboot --firmware-setup') and set Secure Boot to Setup Mode, then rerun this script."
+            exit 1
+        fi
     fi
+elif echo "$status_output" | grep -q "Setup Mode:.*Disabled" && echo "$status_output" | grep -q "Secure Boot:.*Enabled"; then
+    echo "Secure Boot is already enabled. Skipping key enrollment."
+else
+    echo "Your system is not in Setup Mode. Please reboot into your BIOS/UEFI firmware setup (e.g., via 'systemctl reboot --firmware-setup'), reset Secure Boot keys or set to Setup Mode, then rerun this script."
+    exit 1
 fi
 
 # Verify and sign files automatically
@@ -48,4 +58,4 @@ sudo sbctl verify | sed 's/✗ /sudo sbctl sign -s /e'
 # Display final status
 sudo sbctl status
 
-echo "Script completed. Reboot your system and verify Secure Boot status in your BIOS/UEFI if necessary. You may need to rerun this script after reboot to confirm everything is signed and enabled."
+echo "Script completed. If Secure Boot is enabled, verify its status in your BIOS/UEFI if necessary. You may need to rerun this script after system changes to re-sign files."
