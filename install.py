@@ -75,7 +75,7 @@ device = selected_device
 
 # Prompt user for installation inputs with defaults
 hostname = input_with_default("Enter hostname", "arch")
-sudo_user = input_with_default("Enter sudo user username", "hm")
+sudo_user = input_with_default("Enter sudo user username", "myuser")
 use_local_mirrors = input_with_default("Use local offline mirrors for pacman and AUR?", "No").lower().startswith('y')
 sudo_password = getpass("Enter sudo user password: ")
 root_password = getpass("Enter root password: ")

@@ -1,10 +1,10 @@
 # Arch Linux Automated Install
 
-This script automates the installation of a minimal Arch Linux base system, preparing it to be configured by an Ansible playbook.
+This script automates the installation of a minimal Arch Linux base system, preparing it to be configured by this [Ansible playbook](https://github.com/henningmyhrvold/dotfiles-playbook).
 
 ## Pre-installation Steps
 
-1.  **Boot into the Arch Linux ISO.**
+1.  **Boot into the current Arch Linux ISO.**
 2.  **Connect to the internet.**
     * For WiFi, use `iwctl`.
     * Ethernet should work automatically.
@@ -15,9 +15,9 @@ This script automates the installation of a minimal Arch Linux base system, prep
     cd /tmp/archinstall
     ```
 4.  **Review and Modify Scripts**
-    * `pacman_packages.txt`: Add or remove packages for the base install.
-    * `post_install.sh`: This script runs at the end of the installation.
-    * `install.py`: Change default user name "hm" to your own. If you change the username, change username in the dotfiles and dotfiles-playbook repos.
+    * `pacman_packages.txt`: No changes needed, but it is possible to add or remove packages for the base install.
+    * `post_install.sh`: No changes needed, this script runs at the end of the installation.
+    * `install.py`: You could change default user name in the script but it is not required. Change timezone.
 
 5.  **Extended WiFi commands**
     ```bash
@@ -30,6 +30,10 @@ This script automates the installation of a minimal Arch Linux base system, prep
     [iwd]# exit
     ip a
     ping github.com
+    ```
+5.  **Change myuser name with youruser name**
+    ```bash
+    git grep -l myuser | xargs sed -i 's/myuser/youruser/g'
     ```
 
 ## Installation
@@ -45,10 +49,20 @@ python install.py
     * Log in 
     * cd src/dotfiles-playbook
     * ./bootstrap.sh
-    * Wait for the playbook to finish. Reboot.
-2.  **Secure Boot**
+    * Wait for the playbook to finish. Reboot the machine.
+2.  **Enable Secure Boot**
     * Super + Enter for terminal
     ```bash
     enable_secure_boot.sh
+    ```
+    * Reboot into UEFI/BIOS, turn on secure boot and enable user mode. 
+    * Boot into arch. Run script again.
+    ```bash
+    enable_secure_boot.sh
+    ```
+    * If you enables user mode correctly it should now give a status with green check marks. 
+3.  **Enable TPM autounlock**
+    * Super + Enter for terminal
+    ```bash
     enable_tpm_autounlock.sh
     ```
