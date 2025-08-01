@@ -1,61 +1,48 @@
 #!/bin/bash
 
-set -e  # Exit on error for robustness
+set -e
 
-efivars_dir="/sys/firmware/efi/efivars"
-
-# Function to make Secure Boot-related EFI variables writable if immutable
-make_writable() {
-    local patterns=("PK-*" "KEK-*" "db-*" "dbx-*")
-    for pattern in "${patterns[@]}"; do
-        for file in "$efivars_dir/$pattern"; do
-            if [ -f "$file" ]; then
-                if lsattr "$file" | grep -q '----i'; then
-                    echo "Making $file writable..."
-                    sudo chattr -i "$file"
-                else
-                    echo "$file is already writable."
-                fi
-            fi
-        done
-    done
-}
-
-# Install required software
+# Install sbctl if not present
 sudo pacman -S --needed sbctl
 
-# Capture status output once
-status_output=$(sudo sbctl status)
+# Define keys directory
+KEYS_DIR="/var/lib/sbctl/keys"
 
-# Create keys if not already installed
-if ! echo "$status_output" | grep -iq "Installed.*installed"; then
-    echo "Creating Secure Boot keys..."
+# Get current status
+STATUS=$(sudo sbctl status)
+
+# Create keys if they do not exist
+if [ ! -d "$KEYS_DIR" ]; then
     sudo sbctl create-keys
 fi
 
-# Check Setup Mode and Secure Boot status
-if echo "$status_output" | grep -q "Setup Mode:.*Enabled"; then
-    echo "Enrolling keys (including Microsoft keys)..."
-    if ! sudo sbctl enroll-keys -m; then
-        echo "Initial enrollment failed. Attempting to make EFI variables writable..."
-        make_writable
-        if ! sudo sbctl enroll-keys -m; then
-            echo "Enrollment failed even after making variables writable. Manual intervention may be required: reboot into your BIOS/UEFI firmware setup (e.g., via 'systemctl reboot --firmware-setup') and set Secure Boot to Setup Mode, then rerun this script."
-            exit 1
-        fi
+# Enroll keys only if not already enrolled (no Owner GUID) and in Setup Mode
+if ! echo "$STATUS" | grep -q "Owner GUID:"; then
+    if echo "$STATUS" | grep "Setup Mode:" | grep -q "Enabled"; then
+        sudo sbctl enroll-keys -m -i
+    else
+        echo "The system is not in Setup Mode, which is required to enroll keys."
+        echo "Reboot into firmware setup using: sudo systemctl reboot --firmware-setup"
+        echo "In the UEFI/BIOS settings, clear the existing Secure Boot keys to enter Setup Mode."
+        echo "After making the changes, boot back into the system and rerun this script."
+        exit 1
     fi
-elif echo "$status_output" | grep -q "Setup Mode:.*Disabled" && echo "$status_output" | grep -q "Secure Boot:.*Enabled"; then
-    echo "Secure Boot is already enabled. Skipping key enrollment."
-else
-    echo "Your system is not in Setup Mode. Please reboot into your BIOS/UEFI firmware setup (e.g., via 'systemctl reboot --firmware-setup'), reset Secure Boot keys or set to Setup Mode, then rerun this script."
-    exit 1
 fi
 
-# Verify and sign files automatically
-echo "Verifying and signing files..."
+# Sign any unsigned files
 sudo sbctl verify | sed 's/✗ /sudo sbctl sign -s /e'
 
-# Display final status
-sudo sbctl status
+# Refresh and display status
+STATUS=$(sudo sbctl status)
+echo "$STATUS"
 
-echo "Script completed. If Secure Boot is enabled, verify its status in your BIOS/UEFI if necessary. You may need to rerun this script after system changes to re-sign files."
+# Instruct to enable Secure Boot if it remains disabled
+if echo "$STATUS" | grep "Secure Boot:" | grep -q "Disabled"; then
+    echo "Keys have been enrolled and files signed, but Secure Boot is still disabled."
+    echo "Reboot into firmware setup using: sudo systemctl reboot --firmware-setup"
+    echo "In the UEFI/BIOS settings, enable Secure Boot."
+    echo "After rebooting, the system should now boot with Secure Boot enforced."
+    echo "Rerun this script afterward to confirm the status or sign any new files if necessary."
+else
+    echo "Secure Boot setup is complete and enabled."
+fi
