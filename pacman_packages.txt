@@ -12,6 +12,7 @@ reflector
 vim
 ansible
 git
+less
 polkit-kde-agent
 noto-fonts
 libinput
