@@ -100,7 +100,7 @@ boot_partition = PartitionModification(
     length=boot_length,
     mountpoint=Path('/boot'),
     fs_type=FilesystemType.Fat32,
-    flags=[PartitionFlag.ESP],
+    flags=[PartitionFlag.ESP, PartitionFlag.BOOT],
 )
 device_modification.add_partition(boot_partition)
 
