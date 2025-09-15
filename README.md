@@ -2,7 +2,7 @@
 
 This script automates the installation of a minimal Arch Linux base system, preparing it to be configured by this [Ansible playbook](https://github.com/henningmyhrvold/dotfiles-playbook).
 
-Last tested Arch Linux ISO: archlinux-2025.08.01-x86_64.iso
+Last tested Arch Linux ISO: archlinux-2025.09.01-x86_64.iso
 
 ## Pre-installation Steps
 
