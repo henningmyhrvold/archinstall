@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Exit if not run as root
 if [ "$EUID" -ne 0 ]; then
@@ -16,7 +17,7 @@ print_update() {
 }
 
 # Check for username argument
-if [ -z "$1" ]; then
+if [ -z "${1:-}" ]; then
     tput setaf 1
     echo "Error: Username argument is required."
     tput sgr0
@@ -65,16 +66,10 @@ print_update "Cloning Ansible playbook into $DOTFILES_DIR..."
 sudo -u "$USERNAME" git clone "$ANSIBLE_REPO_URL" "$DOTFILES_DIR"
 sudo -u "$USERNAME" git clone "$ARCHINSTALL_REPO_URL" "$ARCHINSTALL_DIR"
 
-if [ $? -ne 0 ]; then
-    tput setaf 1
-    echo "Error: Failed to clone Ansible repository."
-    tput sgr0
-else
-    # This chown is technically redundant because of `sudo -u`, but it's a harmless safety check.
-    chown -R "$USERNAME":"$USERNAME" "$DOTFILES_DIR"
-    chmod +x "$DOTFILES_DIR/bootstrap.sh"
-    print_update "Ansible repository cloned to $DOTFILES_DIR"
-fi
+# This chown is technically redundant because of `sudo -u`, but it's a harmless safety check.
+chown -R "$USERNAME":"$USERNAME" "$DOTFILES_DIR"
+chmod +x "$DOTFILES_DIR/bootstrap.sh"
+print_update "Ansible repository cloned to $DOTFILES_DIR"
 
 
 # --- Final Message ---

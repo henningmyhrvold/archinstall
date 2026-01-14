@@ -1,0 +1,8 @@
+{
+    "hostname": "arch",
+    "username": "henning",
+    "timezone": "Europe/Oslo",
+    "swap_size": "8G",
+    "pacman_mirror": "192.168.1.100",
+    "aur_mirror": "192.168.1.100"
+}

@@ -1,3 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+
 echo "Warning! Secure boot must be activated before continuing"
 sudo pacman -S --needed clevis
 sleep 2

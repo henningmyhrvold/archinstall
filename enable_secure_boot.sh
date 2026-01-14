@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail
+
 sudo pacman -S --needed sbctl
 
 sudo sbctl create-keys

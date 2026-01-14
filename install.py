@@ -5,6 +5,7 @@ import subprocess
 import shutil
 import time
 import re
+import json
 
 from archinstall.default_profiles.minimal import MinimalProfile
 from archinstall.lib.disk.device_handler import device_handler
@@ -29,9 +30,33 @@ from archinstall.lib.models.profile import ProfileConfiguration
 from archinstall.lib.models.users import Password, User
 from archinstall.lib.profile.profiles_handler import profile_handler
 
-# Define local mirror addresses (manually set these before running the script)
-PACMAN_MIRROR = "192.168.1.100"
-AUR_MIRROR = "192.168.1.100"
+# --- Configuration ---
+# Load configuration from config.json if it exists, otherwise use defaults
+CONFIG_FILE = Path('/tmp/archinstall/config.json')
+DEFAULT_CONFIG = {
+    "hostname": "arch",
+    "username": "henning",
+    "timezone": "Europe/Oslo",
+    "swap_size": "8G",
+    "pacman_mirror": "192.168.1.100",
+    "aur_mirror": "192.168.1.100"
+}
+
+def load_config():
+    """Load configuration from config.json, falling back to defaults."""
+    config = DEFAULT_CONFIG.copy()
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                user_config = json.load(f)
+                config.update(user_config)
+            print(f"Loaded configuration from {CONFIG_FILE}")
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Warning: Could not load {CONFIG_FILE}: {e}")
+            print("Using default configuration.")
+    return config
+
+config = load_config()
 
 # Check for UEFI mode
 if not os.path.exists('/sys/firmware/efi'):
@@ -73,9 +98,9 @@ else:
 # Use the selected device
 device = selected_device
 
-# Prompt user for installation inputs with defaults
-hostname = input_with_default("Enter hostname", "arch")
-sudo_user = input_with_default("Enter sudo user username", "henning")
+# Prompt user for installation inputs with defaults from config
+hostname = input_with_default("Enter hostname", config["hostname"])
+sudo_user = input_with_default("Enter sudo user username", config["username"])
 use_local_mirrors = input_with_default("Use local offline mirrors for pacman and AUR?", "No").lower().startswith('y')
 sudo_password = getpass("Enter sudo user password: ")
 root_password = getpass("Enter root password: ")
@@ -165,6 +190,7 @@ with Installer(
     installation.mount_ordered_layout()
 
     # Configure local mirrors for pacman if selected
+    # Note: [community] repo was merged into [extra] in 2023
     if use_local_mirrors:
         pacman_conf = mountpoint / 'etc' / 'pacman.conf'
         with open(pacman_conf, 'w') as f:
@@ -177,13 +203,10 @@ SigLevel    = Required DatabaseOptional
 LocalFileSigLevel = Optional
 
 [core]
-Server = http://{PACMAN_MIRROR}/$repo/os/$arch
+Server = http://{config["pacman_mirror"]}/$repo/os/$arch
 
 [extra]
-Server = http://{PACMAN_MIRROR}/$repo/os/$arch
-
-[community]
-Server = http://{PACMAN_MIRROR}/$repo/os/$arch
+Server = http://{config["pacman_mirror"]}/$repo/os/$arch
 ''')
 
     # Perform minimal installation with specified hostname
@@ -200,7 +223,7 @@ AURonly
 SkipReview
 
 [bin]
-Server = http://{AUR_MIRROR}/aur
+Server = http://{config["aur_mirror"]}/aur
 ''')
 
     # Configure kernel cmdline for encryption
@@ -283,16 +306,16 @@ editor no
     # Enable services
     installation.enable_service(['NetworkManager.service', 'sshd.service', 'iwd.service'])
 
-    # Set timezone
-    installation.set_timezone('Europe/Oslo')
+    # Set timezone from config
+    installation.set_timezone(config["timezone"])
     
     installation.setup_swap("zram")
     
     # Create a swap file inside the encrypted root filesystem
     # This provides swap space for memory-intensive tasks and is encrypted along with the root partition
     print("Creating swap file...")
-    SWAP_SIZE = "8G"
-    installation.arch_chroot(f'fallocate -l {SWAP_SIZE} /swapfile')
+    swap_size = config["swap_size"]
+    installation.arch_chroot(f'fallocate -l {swap_size} /swapfile')
     installation.arch_chroot('chmod 600 /swapfile')
     installation.arch_chroot('mkswap /swapfile')
     

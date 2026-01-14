@@ -17,9 +17,10 @@ Last tested Arch Linux ISO: archlinux-2025.09.01-x86_64.iso
     cd /tmp/archinstall
     ```
 4.  **Review and Modify Scripts**
+    * `config.json`: Edit this file to customize hostname, username, timezone, swap size, and mirror addresses.
     * `pacman_packages.txt`: No changes needed, but it is possible to add or remove packages for the base install.
     * `post_install.sh`: No changes needed, this script runs at the end of the installation.
-    * `install.py`: You could change default user name in the script but it is not required. Change timezone.
+    * `install.py`: No changes needed, configuration is loaded from `config.json`.
 
 5.  **Extended WiFi commands**
     ```bash
@@ -33,10 +34,29 @@ Last tested Arch Linux ISO: archlinux-2025.09.01-x86_64.iso
     ip a
     ping github.com
     ```
-5.  **Change myuser name with youruser name**
-    ```bash
-    git grep -l myuser | xargs sed -i 's/myuser/youruser/g'
+
+6.  **Configuration**
+    
+    Edit `config.json` to customize your installation:
+    ```json
+    {
+        "hostname": "arch",
+        "username": "henning",
+        "timezone": "Europe/Oslo",
+        "swap_size": "8G",
+        "pacman_mirror": "192.168.1.100",
+        "aur_mirror": "192.168.1.100"
+    }
     ```
+    
+    | Setting | Description |
+    |---------|-------------|
+    | `hostname` | System hostname |
+    | `username` | Default sudo user (prompted during install) |
+    | `timezone` | System timezone (e.g., `America/New_York`) |
+    | `swap_size` | Size of swap file (e.g., `8G`, `16G`) |
+    | `pacman_mirror` | Local pacman mirror IP (only used if local mirrors enabled) |
+    | `aur_mirror` | Local AUR mirror IP (only used if local mirrors enabled) |
 
 ## Installation
 
